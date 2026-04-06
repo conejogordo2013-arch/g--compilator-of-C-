@@ -1,25 +1,39 @@
 // Stage1 self-hosted module: codegen.cb
-// This demonstrates minimal inlineability and DCE-oriented flow in C! code.
+// Self-hosted backend planning helpers.
 
 import io;
 
 extern void println(int64);
 
-int32 cg_inline_candidate() {
-    return 7;
+int32 cg_inline_candidate_cost(int32 instruction_count) {
+    if (instruction_count <= 3) {
+        return 1;
+    }
+    return 0;
 }
 
-int32 cg_emit_label(int32 id) {
-    if (id >= 0) {
+int32 cg_next_label(int32 id) {
+    if (id >= 0 && id < 1000000) {
         return id + 1;
     }
     return 0;
 }
 
+int32 cg_should_keep_function(int32 referenced, int32 exported) {
+    if (exported) {
+        return 1;
+    }
+    if (referenced) {
+        return 1;
+    }
+    return 0;
+}
+
 int32 cg_demo() {
-    int32 v = cg_inline_candidate();
-    int32 lbl = cg_emit_label(v);
-    if (lbl > 0) {
+    int32 tiny_inline = cg_inline_candidate_cost(2);
+    int32 keep_main = cg_should_keep_function(1, 0);
+    int32 lbl = cg_next_label(41);
+    if (tiny_inline && keep_main && lbl == 42) {
         println(4001);
         return 1;
     }

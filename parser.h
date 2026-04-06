@@ -12,6 +12,8 @@ typedef struct Symbol {
     TypeKind return_type;
     size_t arity;
     TypeKind params[16];
+    bool variadic;
+    char *struct_name;
     bool is_extern;
     bool is_imported;
     bool referenced;
@@ -31,6 +33,18 @@ typedef struct Parser {
     SymbolTable *scope;
     TypeKind current_function_return;
     int loop_depth;
+    struct {
+        char name[64];
+        struct {
+            char name[64];
+            TypeKind type;
+            int offset;
+        } fields[32];
+        int field_count;
+        int size;
+    } structs[64];
+    int struct_count;
+    char pending_struct_name[64];
 } Parser;
 
 AstNode *parse_program(Parser *p, const char *src);
