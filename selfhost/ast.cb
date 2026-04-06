@@ -1,0 +1,26 @@
+// Stage1 self-hosted module: ast.cb
+// During full migration, define node arenas, typed unions, and ownership metadata here.
+
+import io;
+
+extern void println(int64);
+
+int32 ast_kind_name_id(int32 kind) {
+    switch (kind) {
+        case 0:
+            return 10;
+        case 1:
+            return 20;
+        default:
+            return 99;
+    }
+}
+
+int32 ast_demo() {
+    int32 id = ast_kind_name_id(0);
+    if (id == 10) {
+        println(3001);
+        return 1;
+    }
+    return 0;
+}
