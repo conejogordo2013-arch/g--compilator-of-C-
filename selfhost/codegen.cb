@@ -1,0 +1,36 @@
+// Stage1 self-hosted module: codegen.cb
+// This demonstrates minimal inlineability and DCE-oriented flow in C! code.
+// NAS path note: later stages can emit explicit NASM text from this module.
+
+import io;
+
+extern void println(int64);
+
+int32 cg_inline_candidate() {
+    return 7;
+}
+
+int32 cg_emit_label(int32 id) {
+    if (id >= 0) {
+        return id + 1;
+    }
+    return 0;
+}
+
+int32 cg_demo() {
+    int32 v = cg_inline_candidate();
+    int32 lbl = cg_emit_label(v);
+    if (lbl > 0) {
+        println(4001);
+        return 1;
+    }
+    return 0;
+}
+
+int32 cg_backend_selector(int32 use_nasm) {
+    if (use_nasm) {
+        // Placeholder ID for NAS backend selection.
+        return 2;
+    }
+    return 1;
+}

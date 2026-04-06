@@ -1,0 +1,12 @@
+*.o
+gee
+out.s
+*.cbang
+sample.cb
+sample.s
+selfhost/*.s
+selfhost/*.asm
+selfhost/*.nasm.o
+gee_stage1
+gee_stage1_nasm
+stdlib/*.o
