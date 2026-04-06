@@ -29,9 +29,14 @@ typedef enum Keyword {
     KW_INT32,
     KW_INT64,
     KW_BYTE,
+    KW_STRUCT,
+    KW_BOOL,
+    KW_STRING,
     KW_VOID,
     KW_IMPORT,
-    KW_EXTERN
+    KW_EXTERN,
+    KW_TRUE,
+    KW_FALSE
 } Keyword;
 
 typedef struct Token {

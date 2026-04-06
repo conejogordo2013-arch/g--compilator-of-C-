@@ -22,8 +22,9 @@ static Keyword keyword_of(const char *s, size_t n) {
         {"fn", KW_FN}, {"return", KW_RETURN}, {"if", KW_IF}, {"else", KW_ELSE},
         {"while", KW_WHILE}, {"for", KW_FOR}, {"switch", KW_SWITCH}, {"case", KW_CASE},
         {"default", KW_DEFAULT}, {"break", KW_BREAK}, {"continue", KW_CONTINUE},
-        {"int32", KW_INT32}, {"int64", KW_INT64}, {"byte", KW_BYTE}, {"void", KW_VOID},
-        {"import", KW_IMPORT}, {"extern", KW_EXTERN}
+        {"int32", KW_INT32}, {"int64", KW_INT64}, {"byte", KW_BYTE}, {"struct", KW_STRUCT}, {"bool", KW_BOOL},
+        {"string", KW_STRING}, {"void", KW_VOID},
+        {"import", KW_IMPORT}, {"extern", KW_EXTERN}, {"true", KW_TRUE}, {"false", KW_FALSE}
     };
     for (size_t i = 0; i < sizeof(table) / sizeof(table[0]); ++i) {
         if (strlen(table[i].w) == n && strncmp(s, table[i].w, n) == 0) {
@@ -183,7 +184,7 @@ Token lexer_next(Lexer *lx) {
         (a == '>' && b == '=') || (a == '&' && b == '&') || (a == '|' && b == '|') ||
         (a == '+' && b == '+') || (a == '-' && b == '-') ||
         (a == '+' && b == '=') || (a == '-' && b == '=') ||
-        (a == '*' && b == '=') || (a == '/' && b == '=')) {
+        (a == '*' && b == '=') || (a == '/' && b == '=') || (a == '-' && b == '>')) {
         advance(lx);
         t.length = 2;
         t.kind = TOK_OPERATOR;

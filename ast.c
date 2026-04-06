@@ -107,6 +107,17 @@ void ast_free(AstNode *node) {
             free(node->as.assign_expr.target);
             ast_free(node->as.assign_expr.value);
             break;
+        case AST_PTR_ASSIGN:
+            ast_free(node->as.ptr_assign_expr.ptr);
+            ast_free(node->as.ptr_assign_expr.value);
+            break;
+        case AST_FIELD:
+            ast_free(node->as.field_expr.base);
+            break;
+        case AST_FIELD_ASSIGN:
+            ast_free(node->as.field_assign_expr.base);
+            ast_free(node->as.field_assign_expr.value);
+            break;
         case AST_IDENTIFIER:
             free(node->as.ident_expr.name);
             break;
@@ -128,6 +139,8 @@ const char *type_kind_name(TypeKind t) {
         case TYPE_INT64: return "int64";
         case TYPE_STRING: return "string";
         case TYPE_BOOL: return "bool";
+        case TYPE_PTR: return "ptr";
+        case TYPE_STRUCT: return "struct";
         default: return "unknown";
     }
 }
