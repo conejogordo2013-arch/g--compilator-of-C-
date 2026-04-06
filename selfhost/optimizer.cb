@@ -1,0 +1,33 @@
+// Stage1 self-hosted optimizer module.
+// This mirrors the idea of C-stage IR peephole optimizations.
+
+import io;
+
+extern void println(int64);
+
+int32 opt_fold_constants(int32 a, int32 b) {
+    int32 c = a * 2 + b * 2;
+    if (c == 84) {
+        return 1;
+    }
+    return 0;
+}
+
+int32 opt_dead_branch_demo(int32 flag) {
+    if (flag) {
+        return 10;
+        // Dead code candidate for later passes.
+        return 99;
+    }
+    return 0;
+}
+
+int32 optimizer_demo() {
+    int32 f = opt_fold_constants(21, 21);
+    int32 d = opt_dead_branch_demo(1);
+    if (f && d) {
+        println(5001);
+        return 1;
+    }
+    return 0;
+}
