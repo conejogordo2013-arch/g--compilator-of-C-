@@ -19,7 +19,8 @@ typedef enum IROp {
     IR_CALL,
     IR_RET,
     IR_STORE,
-    IR_LOAD
+    IR_LOAD,
+    IR_GLOBAL
 } IROp;
 
 typedef struct IRInst {

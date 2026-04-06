@@ -12,6 +12,12 @@ all: stage0
 
 stage0: $(GEE)
 
+# Explicit convenience targets:
+# - original: stage0 compiler written in C (gee)
+# - advanced: self-hosted stage1 compiler (gee_stage1)
+original: stage0
+advanced: bootstrap
+
 $(GEE): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $(OBJS)
 
@@ -34,4 +40,4 @@ $(SELFHOST_DIR)/%.s: $(SELFHOST_DIR)/%.cb $(GEE)
 clean:
 	rm -f $(OBJS) $(GEE) gee_stage1 out.s $(SELFHOST_ASM)
 
-.PHONY: all stage0 bootstrap clean
+.PHONY: all stage0 original advanced bootstrap clean

@@ -658,8 +658,8 @@ AstNode *parse_program(Parser *p, const char *src) {
             p->current--;
             node_array_push(&prog->as.program.decls, parse_function(p, rt, name));
         } else {
-            parse_error(p, peek(p), "global variable declarations not implemented yet");
-            while (!match_symbol(p, ';') && !at_end(p)) p->current++;
+            p->current--;
+            node_array_push(&prog->as.program.decls, parse_var_decl(p, rt));
         }
     }
 

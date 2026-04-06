@@ -195,6 +195,18 @@ static void gen_stmt(AstNode *n, IRProgram *ir) {
 void generate_ir(AstNode *program, IRProgram *ir) {
     ir_init(ir);
     current_program = program;
+
+    for (size_t i = 0; i < program->as.program.decls.count; ++i) {
+        AstNode *d = program->as.program.decls.items[i];
+        if (d->kind == AST_VAR_DECL) {
+            int init = 0;
+            if (d->as.var_decl.init && d->as.var_decl.init->kind == AST_INT_LITERAL) {
+                init = (int)d->as.var_decl.init->as.int_lit.value;
+            }
+            ir_emit(ir, IR_GLOBAL, init, 0, 0, d->as.var_decl.name);
+        }
+    }
+
     for (size_t i = 0; i < program->as.program.decls.count; ++i) {
         AstNode *d = program->as.program.decls.items[i];
         if (d->kind == AST_FUNCTION) {
@@ -214,6 +226,24 @@ void generate_ir(AstNode *program, IRProgram *ir) {
 
 void emit_x86_64(IRProgram *ir, FILE *out) {
     fprintf(out, ".intel_syntax noprefix\n");
+    bool has_globals = false;
+    for (size_t i = 0; i < ir->count; ++i) {
+        if (ir->insts[i].op == IR_GLOBAL) {
+            has_globals = true;
+            break;
+        }
+    }
+    if (has_globals) {
+        fprintf(out, ".data\n");
+        for (size_t i = 0; i < ir->count; ++i) {
+            IRInst *in = &ir->insts[i];
+            if (in->op == IR_GLOBAL) {
+                fprintf(out, ".globl %s\n", in->text);
+                fprintf(out, "%s:\n", in->text);
+                fprintf(out, "    .quad %d\n", in->a);
+            }
+        }
+    }
     fprintf(out, ".text\n");
 
     for (size_t i = 0; i < ir->count; ++i) {
@@ -274,6 +304,9 @@ void emit_x86_64(IRProgram *ir, FILE *out) {
                 break;
             case IR_RET:
                 fprintf(out, "    ret\n");
+                break;
+            case IR_GLOBAL:
+                /* Emitted in data prelude above. */
                 break;
         }
     }
