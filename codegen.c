@@ -408,29 +408,10 @@ void emit_x86_64(IRProgram *ir, FILE *out) {
 
     fprintf(out, ".intel_syntax noprefix\n");
     bool has_globals = false;
-    bool has_strings = false;
     for (size_t i = 0; i < ir->count; ++i) {
         if (ir->insts[i].op == IR_GLOBAL) {
             has_globals = true;
             break;
-        }
-    }
-    for (size_t i = 0; i < ir->count; ++i) {
-        if (ir->insts[i].op == IR_STRING) {
-            has_strings = true;
-            break;
-        }
-    }
-    if (has_strings) {
-        fprintf(out, ".section .rodata\n");
-        for (size_t i = 0; i < ir->count; ++i) {
-            IRInst *in = &ir->insts[i];
-            if (in->op == IR_STRING) {
-                fprintf(out, ".LC%zu:\n", i);
-                fprintf(out, "    .string ");
-                emit_escaped_c_string(out, in->text);
-                fprintf(out, "\n");
-            }
         }
     }
     if (has_globals) {
