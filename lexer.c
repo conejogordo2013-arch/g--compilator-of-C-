@@ -50,6 +50,7 @@ static int peek2(Lexer *lx) {
     return (lx->pos + 1 < lx->len) ? lx->src[lx->pos + 1] : '\0';
 }
 
+
 static int advance(Lexer *lx) {
     int ch = peek(lx);
     if (ch == '\0') return ch;
@@ -180,18 +181,29 @@ Token lexer_next(Lexer *lx) {
     t.lexeme = lx->src + lx->pos - 1;
     t.length = 1;
 
+    int c = (char)peek2(lx);
+    if ((a == '<' && b == '<' && c == '=') || (a == '>' && b == '>' && c == '=')) {
+        advance(lx);
+        advance(lx);
+        t.length = 3;
+        t.kind = TOK_OPERATOR;
+        return t;
+    }
+
     if ((a == '=' && b == '=') || (a == '!' && b == '=') || (a == '<' && b == '=') ||
         (a == '>' && b == '=') || (a == '&' && b == '&') || (a == '|' && b == '|') ||
         (a == '+' && b == '+') || (a == '-' && b == '-') ||
         (a == '+' && b == '=') || (a == '-' && b == '=') ||
-        (a == '*' && b == '=') || (a == '/' && b == '=') || (a == '-' && b == '>')) {
+        (a == '*' && b == '=') || (a == '/' && b == '=') || (a == '%' && b == '=') ||
+        (a == '&' && b == '=') || (a == '|' && b == '=') || (a == '^' && b == '=') ||
+        (a == '<' && b == '<') || (a == '>' && b == '>') || (a == '-' && b == '>')) {
         advance(lx);
         t.length = 2;
         t.kind = TOK_OPERATOR;
         return t;
     }
 
-    if (strchr("+-*/%=<>!&|", a)) {
+    if (strchr("+-*/%=<>!&|^~", a)) {
         t.kind = TOK_OPERATOR;
     } else {
         t.kind = TOK_SYMBOL;

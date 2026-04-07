@@ -1,0 +1,50 @@
+// Self-host token model (C! version)
+
+struct ShToken {
+    int32 kind;
+    int32 keyword;
+    int64 lexeme_ptr;
+    int64 length;
+    int64 int_value;
+    int64 str_value;
+    int32 line;
+    int32 col;
+};
+
+struct ShTokenBuffer {
+    int64 data;
+    int64 count;
+    int64 capacity;
+};
+
+int32 SH_TOK_EOF = 0;
+int32 SH_TOK_IDENTIFIER = 1;
+int32 SH_TOK_INTEGER = 2;
+int32 SH_TOK_STRING = 3;
+int32 SH_TOK_KEYWORD = 4;
+int32 SH_TOK_OPERATOR = 5;
+int32 SH_TOK_SYMBOL = 6;
+
+int32 SH_KW_NONE = 0;
+int32 SH_KW_FN = 1;
+int32 SH_KW_RETURN = 2;
+int32 SH_KW_IF = 3;
+int32 SH_KW_ELSE = 4;
+int32 SH_KW_WHILE = 5;
+int32 SH_KW_FOR = 6;
+int32 SH_KW_SWITCH = 7;
+int32 SH_KW_CASE = 8;
+int32 SH_KW_DEFAULT = 9;
+int32 SH_KW_BREAK = 10;
+int32 SH_KW_CONTINUE = 11;
+int32 SH_KW_INT32 = 12;
+int32 SH_KW_INT64 = 13;
+int32 SH_KW_BYTE = 14;
+int32 SH_KW_STRUCT = 15;
+int32 SH_KW_BOOL = 16;
+int32 SH_KW_STRING = 17;
+int32 SH_KW_VOID = 18;
+int32 SH_KW_IMPORT = 19;
+int32 SH_KW_EXTERN = 20;
+int32 SH_KW_TRUE = 21;
+int32 SH_KW_FALSE = 22;
