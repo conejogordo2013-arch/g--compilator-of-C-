@@ -1,15 +1,24 @@
-GEE ?= ../gee
+GEE ?= gee
 AS ?= as
 LD ?= ld
 NASM ?= nasm
+
+GEE_LOCAL := ../gee
+ifneq ($(wildcard $(GEE_LOCAL)),)
+GEE_CMD := $(GEE_LOCAL)
+GEE_DEP := $(GEE_LOCAL)
+else
+GEE_CMD := $(GEE)
+GEE_DEP :=
+endif
 
 all: bootloader.bin kernel.s kernel.o kernel.elf
 
 bootloader.bin: bootloader.asm
 	$(NASM) -f bin $< -o $@
 
-kernel.s: kernel.cb $(GEE)
-	$(GEE) kernel.cb kernel.s
+kernel.s: kernel.cb $(GEE_DEP)
+	$(GEE_CMD) kernel.cb kernel.s
 
 kernel.o: kernel.s
 	$(AS) --64 kernel.s -o kernel.o

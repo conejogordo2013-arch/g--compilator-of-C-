@@ -315,6 +315,90 @@ void generate_ir(AstNode *program, IRProgram *ir) {
     current_program = NULL;
 }
 
+void optimize_ir(IRProgram *ir) {
+    if (!ir || !ir->insts || ir->count == 0) return;
+
+    enum { MAX_TEMPS = 16384 };
+    bool known[MAX_TEMPS];
+    long long value[MAX_TEMPS];
+    memset(known, 0, sizeof(known));
+    memset(value, 0, sizeof(value));
+
+    for (size_t i = 0; i < ir->count; ++i) {
+        IRInst *in = &ir->insts[i];
+        if (in->op == IR_MOVI && in->a >= 0 && in->a < MAX_TEMPS) {
+            known[in->a] = true;
+            value[in->a] = in->b;
+            continue;
+        }
+
+        if ((in->op == IR_ADD || in->op == IR_SUB || in->op == IR_MUL || in->op == IR_DIV) &&
+            in->a >= 0 && in->a < MAX_TEMPS &&
+            in->b >= 0 && in->b < MAX_TEMPS &&
+            in->c >= 0 && in->c < MAX_TEMPS &&
+            known[in->b] && known[in->c]) {
+            long long lhs = value[in->b], rhs = value[in->c], out = 0;
+            if (in->op == IR_ADD) out = lhs + rhs;
+            else if (in->op == IR_SUB) out = lhs - rhs;
+            else if (in->op == IR_MUL) out = lhs * rhs;
+            else if (in->op == IR_DIV) {
+                if (rhs == 0) continue;
+                out = lhs / rhs;
+            }
+            in->op = IR_MOVI;
+            in->b = (int)out;
+            in->c = 0;
+            snprintf(in->text, sizeof(in->text), "folded");
+            known[in->a] = true;
+            value[in->a] = out;
+            continue;
+        }
+
+        if (in->op == IR_CMP &&
+            in->c >= 0 && in->c < MAX_TEMPS &&
+            in->a >= 0 && in->a < MAX_TEMPS &&
+            in->b >= 0 && in->b < MAX_TEMPS &&
+            known[in->a] && known[in->b]) {
+            long long lhs = value[in->a], rhs = value[in->b];
+            int out = 0;
+            if (strcmp(in->text, "==") == 0) out = (lhs == rhs);
+            else if (strcmp(in->text, "!=") == 0) out = (lhs != rhs);
+            else if (strcmp(in->text, "<") == 0) out = (lhs < rhs);
+            else if (strcmp(in->text, "<=") == 0) out = (lhs <= rhs);
+            else if (strcmp(in->text, ">") == 0) out = (lhs > rhs);
+            else if (strcmp(in->text, ">=") == 0) out = (lhs >= rhs);
+            else if (strcmp(in->text, "&&") == 0) out = ((lhs != 0) && (rhs != 0));
+            else if (strcmp(in->text, "||") == 0) out = ((lhs != 0) || (rhs != 0));
+            else continue;
+            in->op = IR_MOVI;
+            in->a = in->c;
+            in->b = out;
+            in->c = 0;
+            snprintf(in->text, sizeof(in->text), "folded_cmp");
+            known[in->a] = true;
+            value[in->a] = out;
+            continue;
+        }
+
+        if (in->a >= 0 && in->a < MAX_TEMPS) known[in->a] = false;
+    }
+
+    IRInst *out = (IRInst *)malloc(ir->capacity * sizeof(IRInst));
+    size_t out_count = 0;
+    bool in_dead_zone = false;
+    for (size_t i = 0; i < ir->count; ++i) {
+        IRInst in = ir->insts[i];
+        if (in.op == IR_LABEL) in_dead_zone = false;
+        if (in_dead_zone && in.op != IR_LABEL) continue;
+        if (in.op == IR_NOP) continue;
+        out[out_count++] = in;
+        if (in.op == IR_RET || in.op == IR_JMP) in_dead_zone = true;
+    }
+    memcpy(ir->insts, out, out_count * sizeof(IRInst));
+    ir->count = out_count;
+    free(out);
+}
+
 typedef struct VarSlot {
     char name[64];
     int offset;
@@ -322,6 +406,60 @@ typedef struct VarSlot {
 
 static int temp_offset(int t) {
     return 8 * (t + 1);
+}
+
+static int parse_call_descriptor(const char *desc, char *name, size_t name_cap, int *args, int max_args);
+
+static int align_up16(int n) {
+    return (n + 15) & ~15;
+}
+
+static void compute_frame_layout(IRProgram *ir, int *frame_size, int *locals_base) {
+    int max_temp = -1;
+    for (size_t i = 0; i < ir->count; ++i) {
+        IRInst *in = &ir->insts[i];
+        switch (in->op) {
+            case IR_MOVI:
+            case IR_LOAD:
+            case IR_ADDR:
+            case IR_STRING:
+                if (in->a > max_temp) max_temp = in->a;
+                break;
+            case IR_ADD:
+            case IR_SUB:
+            case IR_MUL:
+            case IR_DIV:
+            case IR_CMP:
+            case IR_LOAD_IND:
+            case IR_STORE_IND:
+                if (in->a > max_temp) max_temp = in->a;
+                if (in->b > max_temp) max_temp = in->b;
+                if (in->c > max_temp) max_temp = in->c;
+                break;
+            case IR_JE:
+            case IR_STORE:
+            case IR_RET:
+                if (in->a > max_temp) max_temp = in->a;
+                break;
+            case IR_CALL: {
+                if (in->a > max_temp) max_temp = in->a;
+                int args[16] = {0};
+                char callee[64] = {0};
+                int argc = parse_call_descriptor(in->text, callee, sizeof(callee), args, 16);
+                for (int ai = 0; ai < argc; ++ai) {
+                    if (args[ai] > max_temp) max_temp = args[ai];
+                }
+                break;
+            }
+            default:
+                break;
+        }
+    }
+    int temp_area = temp_offset(max_temp + 1);
+    int base = align_up16(temp_area + 64);
+    int frame = align_up16(base + 256 * 8 + 64);
+    if (locals_base) *locals_base = base;
+    if (frame_size) *frame_size = frame;
 }
 
 static int find_slot(VarSlot *slots, int count, const char *name) {
@@ -404,14 +542,35 @@ static int parse_call_descriptor(const char *desc, char *name, size_t name_cap, 
 }
 
 void emit_x86_64(IRProgram *ir, FILE *out) {
-    enum { STACK_FRAME_SIZE = 16384 };
+    int STACK_FRAME_SIZE = 0;
+    int LOCALS_BASE_OFFSET = 0;
+    compute_frame_layout(ir, &STACK_FRAME_SIZE, &LOCALS_BASE_OFFSET);
 
     fprintf(out, ".intel_syntax noprefix\n");
     bool has_globals = false;
+    bool has_strings = false;
     for (size_t i = 0; i < ir->count; ++i) {
         if (ir->insts[i].op == IR_GLOBAL) {
             has_globals = true;
             break;
+        }
+    }
+    for (size_t i = 0; i < ir->count; ++i) {
+        if (ir->insts[i].op == IR_STRING) {
+            has_strings = true;
+            break;
+        }
+    }
+    if (has_strings) {
+        fprintf(out, ".section .rodata\n");
+        for (size_t i = 0; i < ir->count; ++i) {
+            IRInst *in = &ir->insts[i];
+            if (in->op == IR_STRING) {
+                fprintf(out, ".LC%zu:\n", i);
+                fprintf(out, "    .string ");
+                emit_escaped_c_string(out, in->text);
+                fprintf(out, "\n");
+            }
         }
     }
     if (has_globals) {
@@ -430,6 +589,20 @@ void emit_x86_64(IRProgram *ir, FILE *out) {
     VarSlot local_slots[256];
     int local_count = 0;
     bool in_function = false;
+    int known_const[65536] = {0};
+    unsigned char has_known_const[65536] = {0};
+    char cached_local_name[2][64] = {{0}};
+    bool cached_local_valid[2] = {false, false};
+    const char *cached_local_reg[2] = {"r10", "r11"};
+    bool local_cache_enabled = true;
+
+    for (size_t i = 0; i < ir->count; ++i) {
+        IRInst *in = &ir->insts[i];
+        if (in->op == IR_MOVI && in->a >= 0 && in->a < (int)(sizeof(known_const) / sizeof(known_const[0]))) {
+            known_const[in->a] = in->b;
+            has_known_const[in->a] = 1;
+        }
+    }
 
     for (size_t i = 0; i < ir->count; ++i) {
         IRInst *in = &ir->insts[i];
@@ -438,6 +611,8 @@ void emit_x86_64(IRProgram *ir, FILE *out) {
                 if (strncmp(in->text, "fn_", 3) == 0) {
                     local_count = 0;
                     in_function = true;
+                    cached_local_valid[0] = cached_local_valid[1] = false;
+                    local_cache_enabled = true;
                     fprintf(out, ".globl %s\n%s:\n", in->text + 3, in->text + 3);
                     fprintf(out, "    push rbp\n");
                     fprintf(out, "    mov rbp, rsp\n");
@@ -452,21 +627,61 @@ void emit_x86_64(IRProgram *ir, FILE *out) {
                 fprintf(out, "    mov QWORD PTR [rbp-%d], rax\n", temp_offset(in->a));
                 break;
             case IR_ADD:
-                fprintf(out, "    mov rax, QWORD PTR [rbp-%d]\n", temp_offset(in->b));
-                fprintf(out, "    mov rbx, QWORD PTR [rbp-%d]\n", temp_offset(in->c));
-                fprintf(out, "    add rax, rbx\n");
+                if (in->b >= 0 && in->b < 65536 && has_known_const[in->b] &&
+                    in->c >= 0 && in->c < 65536 && has_known_const[in->c]) {
+                    fprintf(out, "    mov rax, %d\n", known_const[in->b] + known_const[in->c]);
+                } else if (in->c >= 0 && in->c < 65536 && has_known_const[in->c]) {
+                    fprintf(out, "    mov rax, QWORD PTR [rbp-%d]\n", temp_offset(in->b));
+                    fprintf(out, "    add rax, %d\n", known_const[in->c]);
+                } else if (in->b >= 0 && in->b < 65536 && has_known_const[in->b]) {
+                    fprintf(out, "    mov rax, QWORD PTR [rbp-%d]\n", temp_offset(in->c));
+                    fprintf(out, "    add rax, %d\n", known_const[in->b]);
+                } else {
+                    fprintf(out, "    mov rax, QWORD PTR [rbp-%d]\n", temp_offset(in->b));
+                    fprintf(out, "    add rax, QWORD PTR [rbp-%d]\n", temp_offset(in->c));
+                }
                 fprintf(out, "    mov QWORD PTR [rbp-%d], rax\n", temp_offset(in->a));
                 break;
             case IR_SUB:
-                fprintf(out, "    mov rax, QWORD PTR [rbp-%d]\n", temp_offset(in->b));
-                fprintf(out, "    mov rbx, QWORD PTR [rbp-%d]\n", temp_offset(in->c));
-                fprintf(out, "    sub rax, rbx\n");
+                if (in->b >= 0 && in->b < 65536 && has_known_const[in->b] &&
+                    in->c >= 0 && in->c < 65536 && has_known_const[in->c]) {
+                    fprintf(out, "    mov rax, %d\n", known_const[in->b] - known_const[in->c]);
+                } else if (in->c >= 0 && in->c < 65536 && has_known_const[in->c]) {
+                    fprintf(out, "    mov rax, QWORD PTR [rbp-%d]\n", temp_offset(in->b));
+                    fprintf(out, "    sub rax, %d\n", known_const[in->c]);
+                } else if (in->b >= 0 && in->b < 65536 && has_known_const[in->b]) {
+                    fprintf(out, "    mov rax, %d\n", known_const[in->b]);
+                    fprintf(out, "    sub rax, QWORD PTR [rbp-%d]\n", temp_offset(in->c));
+                } else {
+                    fprintf(out, "    mov rax, QWORD PTR [rbp-%d]\n", temp_offset(in->b));
+                    fprintf(out, "    sub rax, QWORD PTR [rbp-%d]\n", temp_offset(in->c));
+                }
                 fprintf(out, "    mov QWORD PTR [rbp-%d], rax\n", temp_offset(in->a));
                 break;
             case IR_MUL:
-                fprintf(out, "    mov rax, QWORD PTR [rbp-%d]\n", temp_offset(in->b));
-                fprintf(out, "    mov rbx, QWORD PTR [rbp-%d]\n", temp_offset(in->c));
-                fprintf(out, "    imul rax, rbx\n");
+                if (in->b >= 0 && in->b < 65536 && has_known_const[in->b] &&
+                    in->c >= 0 && in->c < 65536 && has_known_const[in->c]) {
+                    fprintf(out, "    mov rax, %d\n", known_const[in->b] * known_const[in->c]);
+                } else if (in->c >= 0 && in->c < 65536 && has_known_const[in->c]) {
+                    int k = known_const[in->c];
+                    if (k == 0) fprintf(out, "    xor eax, eax\n");
+                    else if (k == 1) fprintf(out, "    mov rax, QWORD PTR [rbp-%d]\n", temp_offset(in->b));
+                    else {
+                        fprintf(out, "    mov rax, QWORD PTR [rbp-%d]\n", temp_offset(in->b));
+                        fprintf(out, "    imul rax, %d\n", k);
+                    }
+                } else if (in->b >= 0 && in->b < 65536 && has_known_const[in->b]) {
+                    int k = known_const[in->b];
+                    if (k == 0) fprintf(out, "    xor eax, eax\n");
+                    else if (k == 1) fprintf(out, "    mov rax, QWORD PTR [rbp-%d]\n", temp_offset(in->c));
+                    else {
+                        fprintf(out, "    mov rax, QWORD PTR [rbp-%d]\n", temp_offset(in->c));
+                        fprintf(out, "    imul rax, %d\n", k);
+                    }
+                } else {
+                    fprintf(out, "    mov rax, QWORD PTR [rbp-%d]\n", temp_offset(in->b));
+                    fprintf(out, "    imul rax, QWORD PTR [rbp-%d]\n", temp_offset(in->c));
+                }
                 fprintf(out, "    mov QWORD PTR [rbp-%d], rax\n", temp_offset(in->a));
                 break;
             case IR_DIV:
@@ -535,6 +750,7 @@ void emit_x86_64(IRProgram *ir, FILE *out) {
                     fprintf(out, "    xor eax, eax\n");
                     fprintf(out, "    call %s\n", callee[0] ? callee : in->text);
                     if (stack_args > 0 || align_pad) fprintf(out, "    add rsp, %d\n", stack_args * 8 + align_pad);
+                    cached_local_valid[0] = cached_local_valid[1] = false;
                 }
                 fprintf(out, "    mov QWORD PTR [rbp-%d], rax\n", temp_offset(in->a));
                 break;
@@ -553,7 +769,22 @@ void emit_x86_64(IRProgram *ir, FILE *out) {
                         if (idx < 0 && local_count < (int)(sizeof(local_slots) / sizeof(local_slots[0]))) {
                             idx = local_count++;
                             snprintf(local_slots[idx].name, sizeof(local_slots[idx].name), "%.63s", name);
-                            local_slots[idx].offset = 4096 + idx * 8;
+                            local_slots[idx].offset = LOCALS_BASE_OFFSET + idx * 8;
+                        }
+                        if (local_cache_enabled) {
+                            int cidx = -1;
+                            for (int ci = 0; ci < 2; ++ci) {
+                                if (cached_local_valid[ci] && strcmp(cached_local_name[ci], name) == 0) { cidx = ci; break; }
+                            }
+                            if (cidx < 0) {
+                                for (int ci = 0; ci < 2; ++ci) {
+                                    if (!cached_local_valid[ci]) { cidx = ci; break; }
+                                }
+                                if (cidx < 0) cidx = 0;
+                                snprintf(cached_local_name[cidx], sizeof(cached_local_name[cidx]), "%.63s", name);
+                                cached_local_valid[cidx] = true;
+                            }
+                            fprintf(out, "    mov %s, rax\n", cached_local_reg[cidx]);
                         }
                         if (idx >= 0) fprintf(out, "    mov QWORD PTR [rbp-%d], rax\n", local_slots[idx].offset);
                     }
@@ -573,9 +804,27 @@ void emit_x86_64(IRProgram *ir, FILE *out) {
                         if (idx < 0 && local_count < (int)(sizeof(local_slots) / sizeof(local_slots[0]))) {
                             idx = local_count++;
                             snprintf(local_slots[idx].name, sizeof(local_slots[idx].name), "%.63s", name);
-                            local_slots[idx].offset = 4096 + idx * 8;
+                            local_slots[idx].offset = LOCALS_BASE_OFFSET + idx * 8;
                         }
-                        if (idx >= 0) fprintf(out, "    mov rax, QWORD PTR [rbp-%d]\n", local_slots[idx].offset);
+                        int cidx = -1;
+                        if (local_cache_enabled) {
+                            for (int ci = 0; ci < 2; ++ci) {
+                                if (cached_local_valid[ci] && strcmp(cached_local_name[ci], name) == 0) { cidx = ci; break; }
+                            }
+                        }
+                        if (cidx >= 0) {
+                            fprintf(out, "    mov rax, %s\n", cached_local_reg[cidx]);
+                        } else if (idx >= 0) {
+                            fprintf(out, "    mov rax, QWORD PTR [rbp-%d]\n", local_slots[idx].offset);
+                            if (local_cache_enabled) {
+                                int free_idx = -1;
+                                for (int ci = 0; ci < 2; ++ci) if (!cached_local_valid[ci]) { free_idx = ci; break; }
+                                if (free_idx < 0) free_idx = 0;
+                                snprintf(cached_local_name[free_idx], sizeof(cached_local_name[free_idx]), "%.63s", name);
+                                cached_local_valid[free_idx] = true;
+                                fprintf(out, "    mov %s, rax\n", cached_local_reg[free_idx]);
+                            }
+                        }
                     }
                     fprintf(out, "    mov QWORD PTR [rbp-%d], rax\n", temp_offset(in->a));
                 }
@@ -597,7 +846,7 @@ void emit_x86_64(IRProgram *ir, FILE *out) {
                     if (idx < 0 && local_count < (int)(sizeof(local_slots) / sizeof(local_slots[0]))) {
                         idx = local_count++;
                         snprintf(local_slots[idx].name, sizeof(local_slots[idx].name), "%.63s", in->text);
-                        local_slots[idx].offset = 4096 + idx * 8;
+                        local_slots[idx].offset = LOCALS_BASE_OFFSET + idx * 8;
                     }
                     if (idx >= 0 && in->a >= 0) {
                         if (in->a < 6) {
@@ -614,11 +863,13 @@ void emit_x86_64(IRProgram *ir, FILE *out) {
                 if (is_global_symbol(ir, in->text)) {
                     fprintf(out, "    lea rax, %s[rip]\n", in->text);
                 } else {
+                    local_cache_enabled = false;
+                    cached_local_valid[0] = cached_local_valid[1] = false;
                     int idx = find_slot(local_slots, local_count, in->text);
                     if (idx < 0 && local_count < (int)(sizeof(local_slots) / sizeof(local_slots[0]))) {
                         idx = local_count++;
                         snprintf(local_slots[idx].name, sizeof(local_slots[idx].name), "%.63s", in->text);
-                        local_slots[idx].offset = 4096 + idx * 8;
+                        local_slots[idx].offset = LOCALS_BASE_OFFSET + idx * 8;
                     }
                     if (idx >= 0) fprintf(out, "    lea rax, [rbp-%d]\n", local_slots[idx].offset);
                 }
@@ -633,6 +884,7 @@ void emit_x86_64(IRProgram *ir, FILE *out) {
                 fprintf(out, "    mov rax, QWORD PTR [rbp-%d]\n", temp_offset(in->a));
                 fprintf(out, "    mov rbx, QWORD PTR [rbp-%d]\n", temp_offset(in->b));
                 fprintf(out, "    mov QWORD PTR [rax], rbx\n");
+                cached_local_valid[0] = cached_local_valid[1] = false;
                 break;
             case IR_STRING:
                 fprintf(out, "    lea rax, .LC%zu[rip]\n", i);
@@ -640,4 +892,350 @@ void emit_x86_64(IRProgram *ir, FILE *out) {
                 break;
         }
     }
+}
+
+static void emit_aarch64(IRProgram *ir, FILE *out) {
+    int STACK_FRAME_SIZE = 0;
+    int LOCALS_BASE_OFFSET = 0;
+    compute_frame_layout(ir, &STACK_FRAME_SIZE, &LOCALS_BASE_OFFSET);
+
+    fprintf(out, ".text\n");
+    bool has_globals = false, has_strings = false;
+    for (size_t i = 0; i < ir->count; ++i) {
+        if (ir->insts[i].op == IR_GLOBAL) has_globals = true;
+        if (ir->insts[i].op == IR_STRING) has_strings = true;
+    }
+    if (has_strings) {
+        fprintf(out, ".section .rodata\n");
+        for (size_t i = 0; i < ir->count; ++i) {
+            IRInst *in = &ir->insts[i];
+            if (in->op == IR_STRING) {
+                fprintf(out, ".LC%zu:\n", i);
+                fprintf(out, "    .asciz ");
+                emit_escaped_c_string(out, in->text);
+                fprintf(out, "\n");
+            }
+        }
+    }
+    if (has_globals) {
+        fprintf(out, ".data\n");
+        for (size_t i = 0; i < ir->count; ++i) {
+            IRInst *in = &ir->insts[i];
+            if (in->op == IR_GLOBAL) {
+                fprintf(out, ".global %s\n%s:\n", in->text, in->text);
+                fprintf(out, "    .xword %d\n", in->a);
+            }
+        }
+    }
+    fprintf(out, ".text\n");
+
+    VarSlot local_slots[256];
+    int local_count = 0;
+    bool in_function = false;
+    char cached_local_name[2][64] = {{0}};
+    bool cached_local_valid[2] = {false, false};
+    const char *cached_local_reg[2] = {"x9", "x10"};
+    bool local_cache_enabled = true;
+    int known_const[65536] = {0};
+    unsigned char has_known_const[65536] = {0};
+
+    for (size_t i = 0; i < ir->count; ++i) {
+        IRInst *in = &ir->insts[i];
+        if (in->op == IR_MOVI && in->a >= 0 && in->a < (int)(sizeof(known_const) / sizeof(known_const[0]))) {
+            known_const[in->a] = in->b;
+            has_known_const[in->a] = 1;
+        }
+    }
+
+    for (size_t i = 0; i < ir->count; ++i) {
+        IRInst *in = &ir->insts[i];
+        switch (in->op) {
+            case IR_LABEL:
+                if (strncmp(in->text, "fn_", 3) == 0) {
+                    local_count = 0;
+                    in_function = true;
+                    cached_local_valid[0] = cached_local_valid[1] = false;
+                    local_cache_enabled = true;
+                    fprintf(out, ".global %s\n%s:\n", in->text + 3, in->text + 3);
+                    fprintf(out, "    stp x29, x30, [sp, #-16]!\n");
+                    fprintf(out, "    mov x29, sp\n");
+                    fprintf(out, "    sub sp, sp, #%d\n", STACK_FRAME_SIZE);
+                } else fprintf(out, "%s:\n", in->text);
+                break;
+            case IR_NOP:
+                break;
+            case IR_MOVI:
+                fprintf(out, "    mov x0, #%d\n", in->b);
+                fprintf(out, "    str x0, [sp, #%d]\n", temp_offset(in->a));
+                break;
+            case IR_ADD:
+                if (in->b >= 0 && in->b < 65536 && has_known_const[in->b] &&
+                    in->c >= 0 && in->c < 65536 && has_known_const[in->c]) {
+                    fprintf(out, "    mov x0, #%d\n", known_const[in->b] + known_const[in->c]);
+                } else if (in->c >= 0 && in->c < 65536 && has_known_const[in->c]) {
+                    fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->b));
+                    fprintf(out, "    mov x1, #%d\n", known_const[in->c]);
+                    fprintf(out, "    add x0, x0, x1\n");
+                } else if (in->b >= 0 && in->b < 65536 && has_known_const[in->b]) {
+                    fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->c));
+                    fprintf(out, "    mov x1, #%d\n", known_const[in->b]);
+                    fprintf(out, "    add x0, x0, x1\n");
+                } else {
+                    fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->b));
+                    fprintf(out, "    ldr x1, [sp, #%d]\n", temp_offset(in->c));
+                    fprintf(out, "    add x0, x0, x1\n");
+                }
+                fprintf(out, "    str x0, [sp, #%d]\n", temp_offset(in->a));
+                break;
+            case IR_SUB:
+                if (in->b >= 0 && in->b < 65536 && has_known_const[in->b] &&
+                    in->c >= 0 && in->c < 65536 && has_known_const[in->c]) {
+                    fprintf(out, "    mov x0, #%d\n", known_const[in->b] - known_const[in->c]);
+                } else if (in->c >= 0 && in->c < 65536 && has_known_const[in->c]) {
+                    fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->b));
+                    fprintf(out, "    mov x1, #%d\n", known_const[in->c]);
+                    fprintf(out, "    sub x0, x0, x1\n");
+                } else if (in->b >= 0 && in->b < 65536 && has_known_const[in->b]) {
+                    fprintf(out, "    mov x0, #%d\n", known_const[in->b]);
+                    fprintf(out, "    ldr x1, [sp, #%d]\n", temp_offset(in->c));
+                    fprintf(out, "    sub x0, x0, x1\n");
+                } else {
+                    fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->b));
+                    fprintf(out, "    ldr x1, [sp, #%d]\n", temp_offset(in->c));
+                    fprintf(out, "    sub x0, x0, x1\n");
+                }
+                fprintf(out, "    str x0, [sp, #%d]\n", temp_offset(in->a));
+                break;
+            case IR_MUL:
+                if (in->b >= 0 && in->b < 65536 && has_known_const[in->b] &&
+                    in->c >= 0 && in->c < 65536 && has_known_const[in->c]) {
+                    fprintf(out, "    mov x0, #%d\n", known_const[in->b] * known_const[in->c]);
+                } else if (in->c >= 0 && in->c < 65536 && has_known_const[in->c]) {
+                    int k = known_const[in->c];
+                    if (k == 0) fprintf(out, "    mov x0, #0\n");
+                    else if (k == 1) fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->b));
+                    else {
+                        fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->b));
+                        fprintf(out, "    mov x1, #%d\n", k);
+                        fprintf(out, "    mul x0, x0, x1\n");
+                    }
+                } else if (in->b >= 0 && in->b < 65536 && has_known_const[in->b]) {
+                    int k = known_const[in->b];
+                    if (k == 0) fprintf(out, "    mov x0, #0\n");
+                    else if (k == 1) fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->c));
+                    else {
+                        fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->c));
+                        fprintf(out, "    mov x1, #%d\n", k);
+                        fprintf(out, "    mul x0, x0, x1\n");
+                    }
+                } else {
+                    fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->b));
+                    fprintf(out, "    ldr x1, [sp, #%d]\n", temp_offset(in->c));
+                    fprintf(out, "    mul x0, x0, x1\n");
+                }
+                fprintf(out, "    str x0, [sp, #%d]\n", temp_offset(in->a));
+                break;
+            case IR_DIV:
+                fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->b));
+                fprintf(out, "    ldr x1, [sp, #%d]\n", temp_offset(in->c));
+                fprintf(out, "    sdiv x0, x0, x1\n");
+                fprintf(out, "    str x0, [sp, #%d]\n", temp_offset(in->a));
+                break;
+            case IR_CMP:
+                fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->a));
+                fprintf(out, "    ldr x1, [sp, #%d]\n", temp_offset(in->b));
+                fprintf(out, "    cmp x0, x1\n");
+                if (strcmp(in->text, "==") == 0) fprintf(out, "    cset x0, eq\n");
+                else if (strcmp(in->text, "!=") == 0) fprintf(out, "    cset x0, ne\n");
+                else if (strcmp(in->text, "<") == 0) fprintf(out, "    cset x0, lt\n");
+                else if (strcmp(in->text, "<=") == 0) fprintf(out, "    cset x0, le\n");
+                else if (strcmp(in->text, ">") == 0) fprintf(out, "    cset x0, gt\n");
+                else if (strcmp(in->text, ">=") == 0) fprintf(out, "    cset x0, ge\n");
+                else if (strcmp(in->text, "&&") == 0) { fprintf(out, "    cset x0, ne\n"); }
+                else if (strcmp(in->text, "||") == 0) { fprintf(out, "    cset x0, ne\n"); }
+                else fprintf(out, "    cset x0, ne\n");
+                fprintf(out, "    str x0, [sp, #%d]\n", temp_offset(in->c));
+                break;
+            case IR_JMP:
+                fprintf(out, "    b L%d\n", in->a);
+                break;
+            case IR_JE:
+                fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->a));
+                fprintf(out, "    cmp x0, #0\n");
+                fprintf(out, "    beq L%d\n", in->b);
+                break;
+            case IR_JNE:
+                fprintf(out, "    bne L%d\n", in->b);
+                break;
+            case IR_CALL: {
+                int args[16] = {0};
+                char callee[64] = {0};
+                int argc = parse_call_descriptor(in->text, callee, sizeof(callee), args, 16);
+                int stack_args = (argc > 8) ? (argc - 8) : 0;
+                if (stack_args) fprintf(out, "    sub sp, sp, #%d\n", stack_args * 8);
+                for (int ai = argc - 1; ai >= 8; --ai) {
+                    int ofs = (ai - 8) * 8;
+                    fprintf(out, "    ldr x9, [sp, #%d]\n", temp_offset(args[ai]) + stack_args * 8);
+                    fprintf(out, "    str x9, [sp, #%d]\n", ofs);
+                }
+                for (int ai = 0; ai < argc && ai < 8; ++ai) {
+                    fprintf(out, "    ldr x%d, [sp, #%d]\n", ai, temp_offset(args[ai]) + stack_args * 8);
+                }
+                fprintf(out, "    bl %s\n", callee[0] ? callee : in->text);
+                if (stack_args) fprintf(out, "    add sp, sp, #%d\n", stack_args * 8);
+                cached_local_valid[0] = cached_local_valid[1] = false;
+                fprintf(out, "    str x0, [sp, #%d]\n", temp_offset(in->a));
+                break;
+            }
+            case IR_STORE: {
+                char name[64] = {0};
+                if (!parse_store_text(in->text, name, sizeof(name))) break;
+                fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->a));
+                if (is_global_symbol(ir, name)) {
+                    fprintf(out, "    adrp x10, %s\n", name);
+                    fprintf(out, "    add x10, x10, :lo12:%s\n", name);
+                    fprintf(out, "    str x0, [x10]\n");
+                } else {
+                    int idx = find_slot(local_slots, local_count, name);
+                    if (idx < 0 && local_count < (int)(sizeof(local_slots) / sizeof(local_slots[0]))) {
+                        idx = local_count++;
+                        snprintf(local_slots[idx].name, sizeof(local_slots[idx].name), "%.63s", name);
+                        local_slots[idx].offset = LOCALS_BASE_OFFSET + idx * 8;
+                    }
+                    if (local_cache_enabled) {
+                        int cidx = -1;
+                        for (int ci = 0; ci < 2; ++ci) {
+                            if (cached_local_valid[ci] && strcmp(cached_local_name[ci], name) == 0) { cidx = ci; break; }
+                        }
+                        if (cidx < 0) {
+                            for (int ci = 0; ci < 2; ++ci) {
+                                if (!cached_local_valid[ci]) { cidx = ci; break; }
+                            }
+                            if (cidx < 0) cidx = 0;
+                            snprintf(cached_local_name[cidx], sizeof(cached_local_name[cidx]), "%.63s", name);
+                            cached_local_valid[cidx] = true;
+                        }
+                        fprintf(out, "    mov %s, x0\n", cached_local_reg[cidx]);
+                    }
+                    if (idx >= 0) fprintf(out, "    str x0, [sp, #%d]\n", local_slots[idx].offset);
+                }
+                break;
+            }
+            case IR_LOAD: {
+                char name[64] = {0};
+                if (!parse_load_text(in->text, name, sizeof(name))) break;
+                if (is_global_symbol(ir, name)) {
+                    fprintf(out, "    adrp x10, %s\n", name);
+                    fprintf(out, "    add x10, x10, :lo12:%s\n", name);
+                    fprintf(out, "    ldr x0, [x10]\n");
+                } else {
+                    int idx = find_slot(local_slots, local_count, name);
+                    if (idx < 0 && local_count < (int)(sizeof(local_slots) / sizeof(local_slots[0]))) {
+                        idx = local_count++;
+                        snprintf(local_slots[idx].name, sizeof(local_slots[idx].name), "%.63s", name);
+                        local_slots[idx].offset = LOCALS_BASE_OFFSET + idx * 8;
+                    }
+                    int cidx = -1;
+                    if (local_cache_enabled) {
+                        for (int ci = 0; ci < 2; ++ci) {
+                            if (cached_local_valid[ci] && strcmp(cached_local_name[ci], name) == 0) { cidx = ci; break; }
+                        }
+                    }
+                    if (cidx >= 0) {
+                        fprintf(out, "    mov x0, %s\n", cached_local_reg[cidx]);
+                    } else if (idx >= 0) {
+                        fprintf(out, "    ldr x0, [sp, #%d]\n", local_slots[idx].offset);
+                        if (local_cache_enabled) {
+                            int free_idx = -1;
+                            for (int ci = 0; ci < 2; ++ci) if (!cached_local_valid[ci]) { free_idx = ci; break; }
+                            if (free_idx < 0) free_idx = 0;
+                            snprintf(cached_local_name[free_idx], sizeof(cached_local_name[free_idx]), "%.63s", name);
+                            cached_local_valid[free_idx] = true;
+                            fprintf(out, "    mov %s, x0\n", cached_local_reg[free_idx]);
+                        }
+                    }
+                }
+                fprintf(out, "    str x0, [sp, #%d]\n", temp_offset(in->a));
+                break;
+            }
+            case IR_RET:
+                if (in->a >= 0) fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->a));
+                if (in_function) {
+                    fprintf(out, "    add sp, sp, #%d\n", STACK_FRAME_SIZE);
+                    fprintf(out, "    ldp x29, x30, [sp], #16\n");
+                }
+                fprintf(out, "    ret\n");
+                break;
+            case IR_GLOBAL:
+                break;
+            case IR_PARAM: {
+                int idx = find_slot(local_slots, local_count, in->text);
+                if (idx < 0 && local_count < (int)(sizeof(local_slots) / sizeof(local_slots[0]))) {
+                    idx = local_count++;
+                    snprintf(local_slots[idx].name, sizeof(local_slots[idx].name), "%.63s", in->text);
+                    local_slots[idx].offset = LOCALS_BASE_OFFSET + idx * 8;
+                }
+                if (idx >= 0) {
+                    if (in->a < 8) fprintf(out, "    str x%d, [sp, #%d]\n", in->a, local_slots[idx].offset);
+                    else {
+                        int stack_off = (in->a - 8) * 8;
+                        fprintf(out, "    ldr x0, [x29, #%d]\n", 16 + stack_off);
+                        fprintf(out, "    str x0, [sp, #%d]\n", local_slots[idx].offset);
+                    }
+                }
+                break;
+            }
+            case IR_ADDR:
+                if (is_global_symbol(ir, in->text)) {
+                    fprintf(out, "    adrp x0, %s\n", in->text);
+                    fprintf(out, "    add x0, x0, :lo12:%s\n", in->text);
+                } else {
+                    local_cache_enabled = false;
+                    cached_local_valid[0] = cached_local_valid[1] = false;
+                    int idx = find_slot(local_slots, local_count, in->text);
+                    if (idx < 0 && local_count < (int)(sizeof(local_slots) / sizeof(local_slots[0]))) {
+                        idx = local_count++;
+                        snprintf(local_slots[idx].name, sizeof(local_slots[idx].name), "%.63s", in->text);
+                        local_slots[idx].offset = LOCALS_BASE_OFFSET + idx * 8;
+                    }
+                    if (idx >= 0) fprintf(out, "    add x0, sp, #%d\n", local_slots[idx].offset);
+                }
+                fprintf(out, "    str x0, [sp, #%d]\n", temp_offset(in->a));
+                break;
+            case IR_LOAD_IND:
+                fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->b));
+                fprintf(out, "    ldr x0, [x0]\n");
+                fprintf(out, "    str x0, [sp, #%d]\n", temp_offset(in->a));
+                break;
+            case IR_STORE_IND:
+                fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->a));
+                fprintf(out, "    ldr x1, [sp, #%d]\n", temp_offset(in->b));
+                fprintf(out, "    str x1, [x0]\n");
+                cached_local_valid[0] = cached_local_valid[1] = false;
+                break;
+            case IR_STRING:
+                fprintf(out, "    adrp x0, .LC%zu\n", i);
+                fprintf(out, "    add x0, x0, :lo12:.LC%zu\n", i);
+                fprintf(out, "    str x0, [sp, #%d]\n", temp_offset(in->a));
+                break;
+        }
+    }
+}
+
+static bool target_is_x86_64(const char *target) {
+    if (!target) return true;
+    return strcmp(target, "x86-64") == 0 || strcmp(target, "x86_64") == 0 || strcmp(target, "amd64") == 0;
+}
+
+bool emit_target(IRProgram *ir, FILE *out, const char *target) {
+    if (target_is_x86_64(target)) {
+        emit_x86_64(ir, out);
+        return true;
+    }
+    if (target && (strcmp(target, "arm-64") == 0 || strcmp(target, "aarch64") == 0 || strcmp(target, "arm64") == 0)) {
+        emit_aarch64(ir, out);
+        return true;
+    }
+    fprintf(stderr, "GEE backend for target '%s' is not implemented yet.\n", target ? target : "(null)");
+    return false;
 }

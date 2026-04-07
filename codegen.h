@@ -47,6 +47,8 @@ typedef struct IRProgram {
 void ir_init(IRProgram *ir);
 void ir_free(IRProgram *ir);
 void generate_ir(AstNode *program, IRProgram *ir);
+void optimize_ir(IRProgram *ir);
 void emit_x86_64(IRProgram *ir, FILE *out);
+bool emit_target(IRProgram *ir, FILE *out, const char *target);
 
 #endif
