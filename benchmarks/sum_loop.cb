@@ -1,0 +1,23 @@
+// Simple CPU benchmark in C! (GEE)
+// Computes a deterministic sum in a hot loop.
+
+extern void println(int64);
+
+int64 bench_sum(int64 n) {
+    int64 i = 0;
+    int64 s = 0;
+
+    while (i < n) {
+        s = s + (i * 3) + 1;
+        i = i + 1;
+    }
+
+    return s;
+}
+
+int32 main() {
+    int64 n = 50000000;
+    int64 r = bench_sum(n);
+    println(r);
+    return 0;
+}
