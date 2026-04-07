@@ -101,4 +101,14 @@ selfhost-audit:
 test-language-runtime:
 	bash scripts/test-language-runtime.sh
 
-.PHONY: all stage0 original advanced bootstrap bootstrap-smoke bootstrap-no-cc bootstrap-no-cc-smoke no-cc-demo run-example no-cc-proof arm-stdlib selfhost-audit test-language-runtime clean install uninstall install-menu
+compat-matrix:
+	bash scripts/compat-matrix.sh
+
+quality-gate: selfhost-audit test-language-runtime compat-matrix
+
+abi-interop:
+	bash scripts/abi-interop-runner.sh
+
+all-tests: quality-gate abi-interop bootstrap-no-cc-smoke
+
+.PHONY: all stage0 original advanced bootstrap bootstrap-smoke bootstrap-no-cc bootstrap-no-cc-smoke no-cc-demo run-example no-cc-proof arm-stdlib selfhost-audit test-language-runtime compat-matrix quality-gate abi-interop all-tests clean install uninstall install-menu

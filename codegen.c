@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+static int g_ir_line = 0;
+
 static void ir_emit(IRProgram *ir, IROp op, int a, int b, int c, const char *text) {
     if (ir->count == ir->capacity) {
         ir->capacity = ir->capacity ? ir->capacity * 2 : 256;
@@ -15,6 +17,7 @@ static void ir_emit(IRProgram *ir, IROp op, int a, int b, int c, const char *tex
     i->a = a;
     i->b = b;
     i->c = c;
+    i->line = g_ir_line;
     snprintf(i->text, sizeof(i->text), "%s", text ? text : "");
 }
 
@@ -39,6 +42,7 @@ static void gen_stmt(AstNode *n, IRProgram *ir);
 
 static int gen_expr(AstNode *n, IRProgram *ir) {
     if (!n) return -1;
+    g_ir_line = n->line;
     switch (n->kind) {
         case AST_INT_LITERAL: {
             int t = fresh_temp(ir);
@@ -237,6 +241,7 @@ static void gen_block(AstNode *b, IRProgram *ir) {
 
 static void gen_stmt(AstNode *n, IRProgram *ir) {
     if (!n) return;
+    g_ir_line = n->line;
     switch (n->kind) {
         case AST_BLOCK:
             gen_block(n, ir);
@@ -663,6 +668,7 @@ void emit_x86_64(IRProgram *ir, FILE *out) {
     bool cached_local_valid[2] = {false, false};
     const char *cached_local_reg[2] = {"r10", "r11"};
     bool local_cache_enabled = true;
+    bool debug_map = getenv("GEE_DEBUG_MAP") != NULL;
 
     for (size_t i = 0; i < ir->count; ++i) {
         IRInst *in = &ir->insts[i];
@@ -674,6 +680,9 @@ void emit_x86_64(IRProgram *ir, FILE *out) {
 
     for (size_t i = 0; i < ir->count; ++i) {
         IRInst *in = &ir->insts[i];
+        if (debug_map && in->line > 0) {
+            fprintf(out, "    # map src:%d ir:%s\n", in->line, in->text);
+        }
         switch (in->op) {
             case IR_LABEL:
                 if (strncmp(in->text, "fn_", 3) == 0) {

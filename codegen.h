@@ -39,6 +39,7 @@ typedef struct IRInst {
     int a;
     int b;
     int c;
+    int line;
     char text[96];
 } IRInst;
 

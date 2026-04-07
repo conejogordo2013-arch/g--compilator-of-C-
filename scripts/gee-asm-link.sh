@@ -2,13 +2,15 @@
 set -euo pipefail
 
 if [ $# -lt 2 ]; then
-  echo "uso: gee-asm-link.sh <target:x86-64|arm-64> <input.cb> [output_bin]" >&2
+  echo "uso: gee-asm-link.sh <target:x86-64|arm-64> <input.cb> [output_bin] [extra_asm.s ...]" >&2
   exit 2
 fi
 
 TARGET="$1"
 INPUT="$2"
 OUT_BIN="${3:-a.out}"
+shift 3 || true
+EXTRA_ASM=("$@")
 BASE="${OUT_BIN%.*}"
 ASM_OUT="${BASE}_${TARGET//-/_}.s"
 OBJ_OUT="${BASE}_${TARGET//-/_}.o"
@@ -79,7 +81,14 @@ GEE_TARGET="$TARGET" "$GEE_BIN" "$INPUT" "$ASM_OUT"
 "$AS_BIN" "${AS_FLAGS[@]}" -o "${BASE}_memory.o" "$STDLIB_MEMORY"
 "$AS_BIN" "${AS_FLAGS[@]}" -o "${BASE}_net.o" "$STDLIB_NET"
 
-"$LD_BIN" -e main -o "$OUT_BIN" "$OBJ_OUT" "${BASE}_system.o" "${BASE}_memory.o" "${BASE}_net.o"
+EXTRA_OBJS=()
+for extra in "${EXTRA_ASM[@]}"; do
+  obj="${BASE}_$(basename "${extra%.*}").o"
+  "$AS_BIN" "${AS_FLAGS[@]}" -o "$obj" "$extra"
+  EXTRA_OBJS+=("$obj")
+done
+
+"$LD_BIN" -e main -o "$OUT_BIN" "$OBJ_OUT" "${BASE}_system.o" "${BASE}_memory.o" "${BASE}_net.o" "${EXTRA_OBJS[@]}"
 
 echo "binario generado sin cc/clang/gcc: $OUT_BIN"
 echo "pipeline usado: GEE (IR->ASM) + as (ASM->OBJ) + ld (OBJ->BIN)"

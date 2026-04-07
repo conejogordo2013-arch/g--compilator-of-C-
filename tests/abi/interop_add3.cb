@@ -1,0 +1,8 @@
+import system;
+extern int32 abi_add3(int32, int32, int32);
+int32 main() {
+    int32 r = abi_add3(1, 2, 3);
+    if (r == 6) { system_exit(0); }
+    system_exit(1);
+    return 0;
+}
