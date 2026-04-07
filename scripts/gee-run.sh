@@ -64,22 +64,27 @@ esac
 echo "binario: $OUT_BIN"
 
 HOST_ARCH="$(uname -m 2>/dev/null || echo unknown)"
+RUN_BIN="$OUT_BIN"
+if [[ "$RUN_BIN" != /* && "$RUN_BIN" != ./* && "$RUN_BIN" != ../* ]]; then
+  RUN_BIN="./$RUN_BIN"
+fi
+
 if [ "$TARGET" = "x86-64" ] || [ "$TARGET" = "x86_64" ] || [ "$TARGET" = "amd64" ]; then
   if [ "$HOST_ARCH" = "x86_64" ] || [ "$HOST_ARCH" = "amd64" ]; then
-    "./$OUT_BIN"
+    "$RUN_BIN"
   else
     if command -v qemu-x86_64 >/dev/null 2>&1; then
-      qemu-x86_64 "./$OUT_BIN"
+      qemu-x86_64 "$RUN_BIN"
     else
       echo "aviso: no puedo ejecutar x86-64 en host $HOST_ARCH (falta qemu-x86_64)." >&2
     fi
   fi
 else
   if [ "$HOST_ARCH" = "aarch64" ] || [ "$HOST_ARCH" = "arm64" ]; then
-    "./$OUT_BIN"
+    "$RUN_BIN"
   else
     if command -v qemu-aarch64 >/dev/null 2>&1; then
-      qemu-aarch64 "./$OUT_BIN"
+      qemu-aarch64 "$RUN_BIN"
     else
       echo "aviso: no puedo ejecutar arm64 en host $HOST_ARCH (falta qemu-aarch64)." >&2
     fi

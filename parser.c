@@ -19,7 +19,11 @@ static char *dup_lexeme(Token t) {
 }
 
 static void parse_error(Parser *p, Token t, const char *msg) {
-    fprintf(stderr, "parse error at %d:%d near '%.*s': %s\n", t.line, t.col, (int)t.length, t.lexeme, msg);
+    if (t.kind == TOK_EOF) {
+        fprintf(stderr, "parse error at %d:%d near <eof>: %s\n", t.line, t.col, msg);
+    } else {
+        fprintf(stderr, "parse error at %d:%d near '%.*s': %s\n", t.line, t.col, (int)t.length, t.lexeme, msg);
+    }
     p->had_error = true;
 }
 
@@ -169,6 +173,7 @@ static TypeKind unify_numeric(TypeKind a, TypeKind b) {
 static AstNode *parse_expr(Parser *p);
 static AstNode *parse_statement(Parser *p);
 static AstNode *parse_block(Parser *p);
+static void sync_top_level(Parser *p);
 
 static AstNode *parse_primary(Parser *p) {
     Token t = peek(p);
@@ -218,7 +223,7 @@ static AstNode *parse_primary(Parser *p) {
                     parse_error(p, t, "argument count mismatch in call");
                 }
             } else {
-                parse_error(p, t, "unknown function called");
+                parse_error(p, t, "unknown function called (missing import/extern or typo)");
                 call->type = TYPE_UNKNOWN;
             }
             return call;
@@ -743,6 +748,7 @@ static AstNode *parse_switch(Parser *p) {
     if (!match_symbol(p, ')')) parse_error(p, peek(p), "expected ')' after switch expr");
     if (!match_symbol(p, '{')) parse_error(p, peek(p), "expected '{' for switch body");
 
+    p->loop_depth++;
     while (!match_symbol(p, '}') && !at_end(p)) {
         if (match_kw(p, KW_CASE)) {
             AstNode *c = ast_new(AST_CASE, prev(p).line);
@@ -766,6 +772,7 @@ static AstNode *parse_switch(Parser *p) {
             p->current++;
         }
     }
+    p->loop_depth--;
     return n;
 }
 
@@ -988,6 +995,24 @@ static void parse_struct_decl(Parser *p) {
     if (!match_symbol(p, ';')) parse_error(p, peek(p), "expected ';' after struct declaration");
 }
 
+static void sync_top_level(Parser *p) {
+    while (!at_end(p)) {
+        Token t = peek(p);
+        if (t.kind == TOK_SYMBOL && t.length == 1 && t.lexeme[0] == ';') {
+            p->current++;
+            return;
+        }
+        if (t.kind == TOK_KEYWORD) {
+            if (t.keyword == KW_IMPORT || t.keyword == KW_EXTERN || t.keyword == KW_STRUCT ||
+                t.keyword == KW_INT32 || t.keyword == KW_INT64 || t.keyword == KW_BYTE ||
+                t.keyword == KW_BOOL || t.keyword == KW_STRING || t.keyword == KW_VOID) {
+                return;
+            }
+        }
+        p->current++;
+    }
+}
+
 AstNode *parse_program(Parser *p, const char *src) {
     memset(p, 0, sizeof(*p));
     p->tokens = lexer_tokenize_all(src);
@@ -1009,6 +1034,7 @@ AstNode *parse_program(Parser *p, const char *src) {
     for (size_t i = 0; i < sizeof(libs) / sizeof(libs[0]); ++i) sym_insert(p->scope, libs[i]);
 
     while (!at_end(p)) {
+        size_t decl_start = p->current;
         if (peek(p).kind == TOK_KEYWORD && peek(p).keyword == KW_STRUCT &&
             peek_n(p, 1).kind == TOK_IDENTIFIER &&
             peek_n(p, 2).kind == TOK_SYMBOL && peek_n(p, 2).lexeme[0] == '{') {
@@ -1026,7 +1052,20 @@ AstNode *parse_program(Parser *p, const char *src) {
         }
 
         TypeKind rt = parse_type(p);
-        Token name = consume(p, TOK_IDENTIFIER, "expected declaration identifier");
+        if (rt == TYPE_UNKNOWN) {
+            sync_top_level(p);
+            if (p->current == decl_start && !at_end(p)) p->current++;
+            continue;
+        }
+
+        Token name = peek(p);
+        if (name.kind != TOK_IDENTIFIER) {
+            parse_error(p, name, "expected declaration identifier");
+            sync_top_level(p);
+            if (p->current == decl_start && !at_end(p)) p->current++;
+            continue;
+        }
+        p->current++;
 
         if (match_symbol(p, '(')) {
             p->current--;
@@ -1035,6 +1074,7 @@ AstNode *parse_program(Parser *p, const char *src) {
             p->current--;
             node_array_push(&prog->as.program.decls, parse_var_decl(p, rt));
         }
+        if (p->current == decl_start && !at_end(p)) p->current++;
     }
 
     /* Dead function elimination marking: keep extern/imported/referenced/main. */

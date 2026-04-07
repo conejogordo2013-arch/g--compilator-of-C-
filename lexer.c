@@ -50,6 +50,25 @@ static int peek2(Lexer *lx) {
     return (lx->pos + 1 < lx->len) ? lx->src[lx->pos + 1] : '\0';
 }
 
+static int is_space_ch(int ch) {
+    return isspace((unsigned char)ch);
+}
+
+static int is_alpha_ch(int ch) {
+    return isalpha((unsigned char)ch);
+}
+
+static int is_alnum_ch(int ch) {
+    return isalnum((unsigned char)ch);
+}
+
+static int is_digit_ch(int ch) {
+    return isdigit((unsigned char)ch);
+}
+
+static int is_xdigit_ch(int ch) {
+    return isxdigit((unsigned char)ch);
+}
 
 static int advance(Lexer *lx) {
     int ch = peek(lx);
@@ -67,7 +86,7 @@ static int advance(Lexer *lx) {
 static void skip_ws_comments(Lexer *lx) {
     for (;;) {
         int ch = peek(lx);
-        if (isspace(ch)) {
+        if (is_space_ch(ch)) {
             advance(lx);
             continue;
         }
@@ -104,9 +123,9 @@ Token lexer_next(Lexer *lx) {
         return t;
     }
 
-    if (isalpha(ch) || ch == '_') {
+    if (is_alpha_ch(ch) || ch == '_') {
         size_t start = lx->pos;
-        while (isalnum(peek(lx)) || peek(lx) == '_') advance(lx);
+        while (is_alnum_ch(peek(lx)) || peek(lx) == '_') advance(lx);
         t.lexeme = lx->src + start;
         t.length = lx->pos - start;
         t.keyword = keyword_of(t.lexeme, t.length);
@@ -114,12 +133,12 @@ Token lexer_next(Lexer *lx) {
         return t;
     }
 
-    if (isdigit(ch)) {
+    if (is_digit_ch(ch)) {
         size_t start = lx->pos;
         long long value = 0;
         if (ch == '0' && (peek2(lx) == 'x' || peek2(lx) == 'X')) {
             advance(lx); advance(lx);
-            while (isxdigit(peek(lx))) {
+            while (is_xdigit_ch(peek(lx))) {
                 int c = advance(lx);
                 value *= 16;
                 if (c >= '0' && c <= '9') value += c - '0';
@@ -132,7 +151,7 @@ Token lexer_next(Lexer *lx) {
             t.int_value = value;
             return t;
         }
-        while (isdigit(peek(lx))) {
+        while (is_digit_ch(peek(lx))) {
             value = value * 10 + (advance(lx) - '0');
         }
         t.kind = TOK_INTEGER;

@@ -101,17 +101,24 @@ selfhost-audit:
 test-language-runtime:
 	bash scripts/test-language-runtime.sh
 
+test-frontend-robustness:
+	bash scripts/test-frontend-robustness.sh
+
+test-complex-cases:
+	bash scripts/test-complex-cases.sh
+
 compat-matrix:
 	bash scripts/compat-matrix.sh
 
-quality-gate: selfhost-audit test-language-runtime compat-matrix
+quality-gate: selfhost-audit test-language-runtime test-frontend-robustness test-complex-cases compat-matrix
 
 abi-interop:
 	bash scripts/abi-interop-runner.sh
 
 all-tests: quality-gate abi-interop bootstrap-no-cc-smoke
+test: all-tests
 
 dev-test:
 	bash scripts/gee-dev-test.sh
 
-.PHONY: all stage0 original advanced bootstrap bootstrap-smoke bootstrap-no-cc bootstrap-no-cc-smoke no-cc-demo run-example no-cc-proof arm-stdlib selfhost-audit test-language-runtime compat-matrix quality-gate abi-interop all-tests dev-test clean install uninstall install-menu
+.PHONY: all stage0 original advanced bootstrap bootstrap-smoke bootstrap-no-cc bootstrap-no-cc-smoke no-cc-demo run-example no-cc-proof arm-stdlib selfhost-audit test-language-runtime test-frontend-robustness test-complex-cases compat-matrix quality-gate abi-interop all-tests test dev-test clean install uninstall install-menu

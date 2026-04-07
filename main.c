@@ -124,23 +124,52 @@ static int file_exists(const char *path) {
     return 1;
 }
 
-static int preprocess_import_module(const char *base_dir, const char *mod, PreCtx *ctx, char **out, size_t *out_len, size_t *out_cap, int depth) {
+static int try_import_candidate(const char *root, const char *mod, PreCtx *ctx, char **out, size_t *out_len, size_t *out_cap, int depth) {
     char rel[256];
     snprintf(rel, sizeof(rel), "stdlib/%s.h", mod);
-    char *cand1 = join_path(base_dir, rel);
-    if (cand1 && file_exists(cand1) && preprocess_file_recursive(cand1, ctx, out, out_len, out_cap, depth + 1)) {
-        free(cand1);
-        return 1;
+    char *cand = join_path(root, rel);
+    if (!cand) return 0;
+    int ok = file_exists(cand) && preprocess_file_recursive(cand, ctx, out, out_len, out_cap, depth + 1);
+    free(cand);
+    return ok;
+}
+
+static int try_import_roots_list(const char *roots, const char *mod, PreCtx *ctx, char **out, size_t *out_len, size_t *out_cap, int depth) {
+    if (!roots || !*roots) return 0;
+    size_t n = strlen(roots);
+    char *buf = (char *)malloc(n + 1);
+    if (!buf) return 0;
+    memcpy(buf, roots, n + 1);
+    int ok = 0;
+    for (char *tok = buf; tok && *tok; ) {
+        char *next = strchr(tok, ':');
+        if (next) {
+            *next = '\0';
+            next++;
+        }
+        if (*tok == '\0') {
+            tok = next;
+            continue;
+        }
+        if (try_import_candidate(tok, mod, ctx, out, out_len, out_cap, depth)) {
+            ok = 1;
+            break;
+        }
+        tok = next;
     }
-    free(cand1);
-    char *cand2 = join_path(".", rel);
-    if (cand2 && file_exists(cand2) && preprocess_file_recursive(cand2, ctx, out, out_len, out_cap, depth + 1)) {
-        free(cand2);
-        return 1;
-    }
-    free(cand2);
-    fprintf(stderr, "warning: import module '%s' not found as stdlib header\n", mod);
-    return 1;
+    free(buf);
+    return ok;
+}
+
+static int preprocess_import_module(const char *base_dir, const char *mod, PreCtx *ctx, char **out, size_t *out_len, size_t *out_cap, int depth) {
+    if (try_import_candidate(base_dir, mod, ctx, out, out_len, out_cap, depth)) return 1;
+    if (try_import_candidate(".", mod, ctx, out, out_len, out_cap, depth)) return 1;
+    if (try_import_roots_list(getenv("GEE_STDLIB"), mod, ctx, out, out_len, out_cap, depth)) return 1;
+    if (try_import_roots_list(getenv("GEE_PATH"), mod, ctx, out, out_len, out_cap, depth)) return 1;
+    fprintf(stderr,
+            "error: import module '%s' not found. searched: <file_dir>/stdlib, ./stdlib, GEE_STDLIB, GEE_PATH\n",
+            mod);
+    return 0;
 }
 
 static int preprocess_file_recursive(const char *path, PreCtx *ctx, char **out, size_t *out_len, size_t *out_cap, int depth) {
@@ -159,8 +188,10 @@ static int preprocess_file_recursive(const char *path, PreCtx *ctx, char **out, 
     if (!base) { free(src); return 0; }
 
     int active_stack[64];
+    int cond_stack[64];
     int sp = 0;
     active_stack[sp++] = 1;
+    cond_stack[0] = 1;
 
     const char *p = src;
     while (*p) {
@@ -219,13 +250,29 @@ static int preprocess_file_recursive(const char *path, PreCtx *ctx, char **out, 
                 q += 6; q = skip_ws(q, line_end);
                 char id[128]; parse_ident(&q, line_end, id, sizeof(id));
                 int cond = !list_contains(ctx->macros, ctx->macro_count, id);
-                if (sp < 64) active_stack[sp++] = active && cond;
+                if (sp < 64) {
+                    active_stack[sp] = active && cond;
+                    cond_stack[sp] = cond;
+                    sp++;
+                }
                 continue;
             } else if (strncmp(q, "ifdef", 5) == 0) {
                 q += 5; q = skip_ws(q, line_end);
                 char id[128]; parse_ident(&q, line_end, id, sizeof(id));
                 int cond = list_contains(ctx->macros, ctx->macro_count, id);
-                if (sp < 64) active_stack[sp++] = active && cond;
+                if (sp < 64) {
+                    active_stack[sp] = active && cond;
+                    cond_stack[sp] = cond;
+                    sp++;
+                }
+                continue;
+            } else if (strncmp(q, "else", 4) == 0) {
+                if (sp > 1) {
+                    int parent_active = active_stack[sp - 2];
+                    int original_cond = cond_stack[sp - 1];
+                    active_stack[sp - 1] = parent_active && !original_cond;
+                    cond_stack[sp - 1] = 1;
+                }
                 continue;
             } else if (strncmp(q, "define", 6) == 0) {
                 q += 6; q = skip_ws(q, line_end);
