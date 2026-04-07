@@ -26,6 +26,11 @@ static void parse_error(Parser *p, Token t, const char *msg) {
 static Token peek(Parser *p) { return p->tokens.data[p->current]; }
 static Token prev(Parser *p) { return p->tokens.data[p->current - 1]; }
 static bool at_end(Parser *p) { return peek(p).kind == TOK_EOF; }
+static Token peek_n(Parser *p, size_t n) {
+    size_t idx = p->current + n;
+    if (idx >= p->tokens.count) return p->tokens.data[p->tokens.count - 1];
+    return p->tokens.data[idx];
+}
 
 static bool match_symbol(Parser *p, char c) {
     Token t = peek(p);
@@ -49,6 +54,17 @@ static bool match_kw(Parser *p, Keyword kw) {
     return false;
 }
 
+static bool match_ellipsis(Parser *p) {
+    Token a = peek_n(p, 0), b = peek_n(p, 1), c = peek_n(p, 2);
+    if (a.kind == TOK_SYMBOL && b.kind == TOK_SYMBOL && c.kind == TOK_SYMBOL &&
+        a.length == 1 && b.length == 1 && c.length == 1 &&
+        a.lexeme[0] == '.' && b.lexeme[0] == '.' && c.lexeme[0] == '.') {
+        p->current += 3;
+        return true;
+    }
+    return false;
+}
+
 static Token consume(Parser *p, TokenKind kind, const char *msg) {
     Token t = peek(p);
     if (t.kind == kind) { p->current++; return t; }
@@ -63,7 +79,10 @@ static SymbolTable *scope_push(SymbolTable *parent) {
 }
 
 static void scope_free(SymbolTable *s) {
-    for (size_t i = 0; i < s->count; ++i) free(s->symbols[i].name);
+    for (size_t i = 0; i < s->count; ++i) {
+        free(s->symbols[i].name);
+        free(s->symbols[i].struct_name);
+    }
     free(s->symbols);
     free(s);
 }
@@ -87,16 +106,57 @@ static Symbol *sym_insert(SymbolTable *s, Symbol sym) {
 }
 
 static TypeKind parse_type(Parser *p) {
-    if (match_kw(p, KW_INT32)) return TYPE_INT32;
-    if (match_kw(p, KW_INT64)) return TYPE_INT64;
-    if (match_kw(p, KW_BYTE)) return TYPE_BYTE;
-    if (match_kw(p, KW_VOID)) return TYPE_VOID;
-    parse_error(p, peek(p), "expected type keyword");
-    return TYPE_UNKNOWN;
+    p->pending_struct_name[0] = '\0';
+    TypeKind base = TYPE_UNKNOWN;
+    if (match_kw(p, KW_INT32)) base = TYPE_INT32;
+    else if (match_kw(p, KW_INT64)) base = TYPE_INT64;
+    else if (match_kw(p, KW_BYTE)) base = TYPE_BYTE;
+    else if (match_kw(p, KW_STRUCT)) {
+        Token st = consume(p, TOK_IDENTIFIER, "expected struct name");
+        size_t n = st.length < sizeof(p->pending_struct_name) - 1 ? st.length : sizeof(p->pending_struct_name) - 1;
+        memcpy(p->pending_struct_name, st.lexeme, n);
+        p->pending_struct_name[n] = '\0';
+        base = TYPE_STRUCT;
+    }
+    else if (match_kw(p, KW_BOOL)) base = TYPE_BOOL;
+    else if (match_kw(p, KW_STRING)) base = TYPE_STRING;
+    else if (match_kw(p, KW_VOID)) base = TYPE_VOID;
+    if (base == TYPE_UNKNOWN) {
+        parse_error(p, peek(p), "expected type keyword");
+        return TYPE_UNKNOWN;
+    }
+
+    while (match_op(p, "*")) {
+        base = TYPE_PTR;
+    }
+
+    return base;
 }
 
 static bool numeric(TypeKind t) {
     return t == TYPE_INT32 || t == TYPE_INT64 || t == TYPE_BYTE;
+}
+
+static int type_size(TypeKind t) {
+    switch (t) {
+        case TYPE_BYTE: return 1;
+        case TYPE_INT32: return 4;
+        case TYPE_INT64: return 8;
+        case TYPE_PTR: return 8;
+        case TYPE_BOOL: return 1;
+        default: return 8;
+    }
+}
+
+static int align_to(int x, int a) {
+    return (x + (a - 1)) & ~(a - 1);
+}
+
+static int find_struct(Parser *p, const char *name) {
+    for (int i = 0; i < p->struct_count; ++i) {
+        if (strcmp(p->structs[i].name, name) == 0) return i;
+    }
+    return -1;
 }
 
 static TypeKind unify_numeric(TypeKind a, TypeKind b) {
@@ -112,6 +172,13 @@ static AstNode *parse_block(Parser *p);
 
 static AstNode *parse_primary(Parser *p) {
     Token t = peek(p);
+    if (t.kind == TOK_KEYWORD && (t.keyword == KW_TRUE || t.keyword == KW_FALSE)) {
+        p->current++;
+        AstNode *n = ast_new(AST_INT_LITERAL, t.line);
+        n->type = TYPE_BOOL;
+        n->as.int_lit.value = (t.keyword == KW_TRUE) ? 1 : 0;
+        return n;
+    }
     if (t.kind == TOK_INTEGER) {
         p->current++;
         AstNode *n = ast_new(AST_INT_LITERAL, t.line);
@@ -146,7 +213,8 @@ static AstNode *parse_primary(Parser *p) {
             if (fn && fn->is_function) {
                 fn->referenced = true;
                 call->type = fn->return_type;
-                if (fn->arity != call->as.call_expr.args.count) {
+                if ((!fn->variadic && fn->arity != call->as.call_expr.args.count) ||
+                    (fn->variadic && call->as.call_expr.args.count < fn->arity)) {
                     parse_error(p, t, "argument count mismatch in call");
                 }
             } else {
@@ -166,7 +234,43 @@ static AstNode *parse_primary(Parser *p) {
             parse_error(p, t, "use of undeclared identifier");
             id->type = TYPE_UNKNOWN;
         }
-        return id;
+        AstNode *expr = id;
+        Symbol *base_sym = sym;
+        while (match_symbol(p, '.') || match_op(p, "->")) {
+            bool through_ptr = prev(p).kind == TOK_OPERATOR;
+            Token fld = consume(p, TOK_IDENTIFIER, "expected field name");
+            if (!base_sym || !base_sym->struct_name) {
+                parse_error(p, fld, "field access requires struct-typed symbol");
+                break;
+            }
+            int si = find_struct(p, base_sym->struct_name);
+            if (si < 0) {
+                parse_error(p, fld, "unknown struct in field access");
+                break;
+            }
+            int off = -1;
+            TypeKind fty = TYPE_UNKNOWN;
+            for (int fi = 0; fi < p->structs[si].field_count; ++fi) {
+                if (strlen(p->structs[si].fields[fi].name) == fld.length &&
+                    strncmp(p->structs[si].fields[fi].name, fld.lexeme, fld.length) == 0) {
+                    off = p->structs[si].fields[fi].offset;
+                    fty = p->structs[si].fields[fi].type;
+                    break;
+                }
+            }
+            if (off < 0) {
+                parse_error(p, fld, "unknown struct field");
+                break;
+            }
+            AstNode *fn = ast_new(AST_FIELD, fld.line);
+            fn->as.field_expr.base = expr;
+            fn->as.field_expr.offset = off;
+            fn->as.field_expr.through_ptr = through_ptr;
+            fn->type = fty;
+            expr = fn;
+            base_sym = NULL;
+        }
+        return expr;
     }
 
     if (match_symbol(p, '(')) {
@@ -181,13 +285,15 @@ static AstNode *parse_primary(Parser *p) {
 }
 
 static AstNode *parse_unary(Parser *p) {
-    if (match_op(p, "-") || match_op(p, "!")) {
+    if (match_op(p, "-") || match_op(p, "!") || match_op(p, "&") || match_op(p, "*")) {
         Token op = prev(p);
         AstNode *rhs = parse_unary(p);
         AstNode *n = ast_new(AST_UNARY, op.line);
         snprintf(n->as.unary_expr.op, sizeof(n->as.unary_expr.op), "%.*s", (int)op.length, op.lexeme);
         n->as.unary_expr.expr = rhs;
-        n->type = rhs->type;
+        if (op.length == 1 && op.lexeme[0] == '&') n->type = TYPE_PTR;
+        else if (op.length == 1 && op.lexeme[0] == '*') n->type = TYPE_INT64;
+        else n->type = rhs->type;
         return n;
     }
     return parse_primary(p);
@@ -306,15 +412,35 @@ static AstNode *parse_assign(Parser *p) {
     if (match_op(p, "=")) {
         Token eq = prev(p);
         AstNode *rhs = parse_assign(p);
-        if (lhs->kind != AST_IDENTIFIER) {
-            parse_error(p, eq, "left hand side of assignment must be identifier");
+        if (lhs->kind == AST_IDENTIFIER) {
+            AstNode *n = ast_new(AST_ASSIGN, eq.line);
+            n->as.assign_expr.target = xstrdup(lhs->as.ident_expr.name);
+            n->as.assign_expr.value = rhs;
+            n->type = rhs->type;
+            ast_free(lhs);
+            return n;
         }
-        AstNode *n = ast_new(AST_ASSIGN, eq.line);
-        n->as.assign_expr.target = xstrdup(lhs->as.ident_expr.name);
-        n->as.assign_expr.value = rhs;
-        n->type = rhs->type;
-        ast_free(lhs);
-        return n;
+        if (lhs->kind == AST_UNARY && strcmp(lhs->as.unary_expr.op, "*") == 0) {
+            AstNode *n = ast_new(AST_PTR_ASSIGN, eq.line);
+            n->as.ptr_assign_expr.ptr = lhs->as.unary_expr.expr;
+            lhs->as.unary_expr.expr = NULL;
+            n->as.ptr_assign_expr.value = rhs;
+            n->type = rhs->type;
+            ast_free(lhs);
+            return n;
+        }
+        if (lhs->kind == AST_FIELD) {
+            AstNode *n = ast_new(AST_FIELD_ASSIGN, eq.line);
+            n->as.field_assign_expr.base = lhs->as.field_expr.base;
+            lhs->as.field_expr.base = NULL;
+            n->as.field_assign_expr.offset = lhs->as.field_expr.offset;
+            n->as.field_assign_expr.through_ptr = lhs->as.field_expr.through_ptr;
+            n->as.field_assign_expr.value = rhs;
+            n->type = rhs->type;
+            ast_free(lhs);
+            return n;
+        }
+        parse_error(p, eq, "left hand side of assignment must be identifier or *pointer");
     }
     return lhs;
 }
@@ -331,6 +457,7 @@ static AstNode *parse_var_decl(Parser *p, TypeKind ty) {
     Symbol sym = {0};
     sym.name = xstrdup(d->as.var_decl.name);
     sym.type = ty;
+    if (p->pending_struct_name[0]) sym.struct_name = xstrdup(p->pending_struct_name);
     sym.is_function = false;
     sym.referenced = false;
     sym_insert(p->scope, sym);
@@ -481,7 +608,9 @@ static AstNode *parse_statement(Parser *p) {
     }
 
     Token t = peek(p);
-    if (t.kind == TOK_KEYWORD && (t.keyword == KW_INT32 || t.keyword == KW_INT64 || t.keyword == KW_BYTE)) {
+    if (t.kind == TOK_KEYWORD &&
+        (t.keyword == KW_INT32 || t.keyword == KW_INT64 || t.keyword == KW_BYTE ||
+         t.keyword == KW_BOOL || t.keyword == KW_STRING || t.keyword == KW_STRUCT)) {
         TypeKind ty = parse_type(p);
         return parse_var_decl(p, ty);
     }
@@ -545,6 +674,7 @@ static AstNode *parse_function(Parser *p, TypeKind rt, Token name_t) {
         Symbol ps = {0};
         ps.name = xstrdup(param->as.param.name);
         ps.type = pty;
+        if (p->pending_struct_name[0]) ps.struct_name = xstrdup(p->pending_struct_name);
         ps.is_function = false;
         ps.referenced = true;
         sym_insert(p->scope, ps);
@@ -604,6 +734,11 @@ static AstNode *parse_extern(Parser *p) {
 
     if (!match_symbol(p, '(')) parse_error(p, peek(p), "expected '(' after extern name");
     while (!match_symbol(p, ')') && !at_end(p)) {
+        if (match_ellipsis(p)) {
+            sym.variadic = true;
+            if (!match_symbol(p, ')')) parse_error(p, peek(p), "expected ')' after variadic extern");
+            break;
+        }
         TypeKind pty = parse_type(p);
         AstNode *pn = ast_new(AST_PARAM, peek(p).line);
         pn->as.param.param_type = pty;
@@ -619,6 +754,41 @@ static AstNode *parse_extern(Parser *p) {
 
     sym_insert(p->scope, sym);
     return n;
+}
+
+static void parse_struct_decl(Parser *p) {
+    Token name = consume(p, TOK_IDENTIFIER, "expected struct name");
+    if (!match_symbol(p, '{')) {
+        parse_error(p, peek(p), "expected '{' in struct declaration");
+        return;
+    }
+    if (p->struct_count >= 64) {
+        parse_error(p, name, "too many struct declarations");
+        return;
+    }
+    int idx = p->struct_count++;
+    size_t n = name.length < sizeof(p->structs[idx].name) - 1 ? name.length : sizeof(p->structs[idx].name) - 1;
+    memcpy(p->structs[idx].name, name.lexeme, n);
+    p->structs[idx].name[n] = '\0';
+    p->structs[idx].field_count = 0;
+    p->structs[idx].size = 0;
+
+    while (!match_symbol(p, '}') && !at_end(p)) {
+        TypeKind fty = parse_type(p);
+        Token fname = consume(p, TOK_IDENTIFIER, "expected field name");
+        if (!match_symbol(p, ';')) parse_error(p, peek(p), "expected ';' after struct field");
+        if (p->structs[idx].field_count >= 32) continue;
+        int fi = p->structs[idx].field_count++;
+        size_t fn = fname.length < sizeof(p->structs[idx].fields[fi].name) - 1 ? fname.length : sizeof(p->structs[idx].fields[fi].name) - 1;
+        memcpy(p->structs[idx].fields[fi].name, fname.lexeme, fn);
+        p->structs[idx].fields[fi].name[fn] = '\0';
+        p->structs[idx].fields[fi].type = fty;
+        int align = type_size(fty);
+        p->structs[idx].size = align_to(p->structs[idx].size, align);
+        p->structs[idx].fields[fi].offset = p->structs[idx].size;
+        p->structs[idx].size += type_size(fty);
+    }
+    if (!match_symbol(p, ';')) parse_error(p, peek(p), "expected ';' after struct declaration");
 }
 
 AstNode *parse_program(Parser *p, const char *src) {
@@ -642,6 +812,13 @@ AstNode *parse_program(Parser *p, const char *src) {
     for (size_t i = 0; i < sizeof(libs) / sizeof(libs[0]); ++i) sym_insert(p->scope, libs[i]);
 
     while (!at_end(p)) {
+        if (peek(p).kind == TOK_KEYWORD && peek(p).keyword == KW_STRUCT &&
+            peek_n(p, 1).kind == TOK_IDENTIFIER &&
+            peek_n(p, 2).kind == TOK_SYMBOL && peek_n(p, 2).lexeme[0] == '{') {
+            p->current++;
+            parse_struct_decl(p);
+            continue;
+        }
         if (match_kw(p, KW_IMPORT)) {
             node_array_push(&prog->as.program.decls, parse_import(p));
             continue;
@@ -658,8 +835,8 @@ AstNode *parse_program(Parser *p, const char *src) {
             p->current--;
             node_array_push(&prog->as.program.decls, parse_function(p, rt, name));
         } else {
-            parse_error(p, peek(p), "global variable declarations not implemented yet");
-            while (!match_symbol(p, ';') && !at_end(p)) p->current++;
+            p->current--;
+            node_array_push(&prog->as.program.decls, parse_var_decl(p, rt));
         }
     }
 

@@ -11,7 +11,9 @@ typedef enum TypeKind {
     TYPE_INT32,
     TYPE_INT64,
     TYPE_STRING,
-    TYPE_BOOL
+    TYPE_BOOL,
+    TYPE_PTR,
+    TYPE_STRUCT
 } TypeKind;
 
 typedef enum AstKind {
@@ -35,6 +37,9 @@ typedef enum AstKind {
     AST_BINARY,
     AST_UNARY,
     AST_ASSIGN,
+    AST_PTR_ASSIGN,
+    AST_FIELD,
+    AST_FIELD_ASSIGN,
     AST_IDENTIFIER,
     AST_INT_LITERAL,
     AST_STRING_LITERAL
@@ -149,6 +154,24 @@ struct AstNode {
             char *target;
             AstNode *value;
         } assign_expr;
+
+        struct {
+            AstNode *ptr;
+            AstNode *value;
+        } ptr_assign_expr;
+
+        struct {
+            AstNode *base;
+            int offset;
+            bool through_ptr;
+        } field_expr;
+
+        struct {
+            AstNode *base;
+            int offset;
+            bool through_ptr;
+            AstNode *value;
+        } field_assign_expr;
 
         struct {
             char *name;

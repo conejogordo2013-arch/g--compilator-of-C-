@@ -1,28 +1,62 @@
 // Stage1 self-hosted module: parser.cb
-// Real parser state machines and grammar tables can replace these stubs incrementally.
+// Self-hosted expression parser helpers used by the stage1 pipeline.
 
 import io;
 
 extern void println(int64);
 
 int32 parse_precedence(int32 token_kind) {
-    if (token_kind == 1) {
-        return 40;
-    } else {
-        if (token_kind == 2) {
+    // 1:'*' 2:'/' 3:'+' 4:'-' 5:'<' 6:'==' 7:'&&' 8:'||'
+    switch (token_kind) {
+        case 1:
+        case 2:
+            return 50;
+        case 3:
+        case 4:
+            return 40;
+        case 5:
+        case 6:
             return 30;
-        } else {
-            if (token_kind == 3) {
-                return 20;
-            }
+        case 7:
+            return 20;
+        case 8:
+            return 10;
+        default:
+            return 0;
+    }
+}
+
+int32 parse_is_right_associative(int32 token_kind) {
+    // Assignment-like operators can be added here later.
+    if (token_kind == 99) {
+        return 1;
+    }
+    return 0;
+}
+
+int32 parse_reduce_step(int32 lhs_prec, int32 rhs_prec, int32 rhs_tok) {
+    if (parse_is_right_associative(rhs_tok)) {
+        if (lhs_prec > rhs_prec) {
+            return 1;
+        }
+    } else {
+        if (lhs_prec >= rhs_prec) {
+            return 1;
         }
     }
     return 0;
 }
 
 int32 parse_expression_demo() {
-    int32 p = parse_precedence(1);
-    if (p > 0) {
+    // Models the operator stream: + then * then ==
+    int32 p_add = parse_precedence(3);
+    int32 p_mul = parse_precedence(1);
+    int32 p_eq = parse_precedence(6);
+
+    int32 reduce_add_before_mul = parse_reduce_step(p_add, p_mul, 1);
+    int32 reduce_mul_before_eq = parse_reduce_step(p_mul, p_eq, 6);
+
+    if (reduce_add_before_mul == 0 && reduce_mul_before_eq == 1) {
         println(2001);
         return 1;
     }

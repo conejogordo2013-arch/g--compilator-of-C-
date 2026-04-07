@@ -6,3 +6,4 @@ sample.cb
 sample.s
 selfhost/*.s
 gee_stage1
+benchmarks/out/

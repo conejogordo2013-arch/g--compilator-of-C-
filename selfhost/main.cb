@@ -1,8 +1,5 @@
 // Stage1 self-hosted driver: main.cb
-// Bootstrapping plan:
-//  1) Stage0 (C) GEE compiles lexer.cb/parser.cb/ast.cb/codegen.cb/main.cb to assembly.
-//  2) Link with stdlib stubs to produce gee_stage1 executable.
-//  3) Replace stubs with full C! modules to eventually compile the production compiler source.
+// Stage1 now executes a multi-pass front-end/backend pipeline health-check.
 
 import io;
 import memory;
@@ -21,13 +18,13 @@ extern int32 ast_demo();
 extern int32 cg_demo();
 
 int32 run_selfhost_pipeline() {
-    int32 a = lex_bootstrap_demo();
-    int32 b = parse_expression_demo();
-    int32 c = ast_demo();
-    int32 d = cg_demo();
+    int32 lex_ok = lex_bootstrap_demo();
+    int32 parse_ok = parse_expression_demo();
+    int32 ast_ok = ast_demo();
+    int32 codegen_ok = cg_demo();
 
-    if (a && b) {
-        if (c && d) {
+    if (lex_ok && parse_ok) {
+        if (ast_ok && codegen_ok) {
             println(9001);
             return 1;
         }

@@ -1,0 +1,6 @@
+#include "jc.h"
+
+int32 main() {
+    JC();
+    return 0;
+}

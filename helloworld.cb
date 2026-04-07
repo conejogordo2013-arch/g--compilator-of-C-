@@ -1,0 +1,8 @@
+// hello world for ARM64 target (AArch64)
+
+extern int32 puts(string);
+
+int32 main() {
+    puts("Hello, World from ARM64!");
+    return 0;
+}
