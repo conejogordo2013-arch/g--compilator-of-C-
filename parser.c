@@ -285,7 +285,45 @@ static AstNode *parse_primary(Parser *p) {
 }
 
 static AstNode *parse_unary(Parser *p) {
-    if (match_op(p, "-") || match_op(p, "!") || match_op(p, "&") || match_op(p, "*")) {
+    if (match_op(p, "++") || match_op(p, "--")) {
+        Token op = prev(p);
+        AstNode *target = parse_unary(p);
+        if (target->kind != AST_IDENTIFIER) {
+            parse_error(p, op, "prefix ++/-- expects identifier target");
+            return target;
+        }
+
+        AstNode *lhs_val = ast_new(AST_IDENTIFIER, op.line);
+        lhs_val->as.ident_expr.name = xstrdup(target->as.ident_expr.name);
+        lhs_val->type = target->type;
+
+        AstNode *one = ast_new(AST_INT_LITERAL, op.line);
+        one->type = TYPE_INT64;
+        one->as.int_lit.value = 1;
+
+        AstNode *bin = ast_new(AST_BINARY, op.line);
+        snprintf(bin->as.binary_expr.op, sizeof(bin->as.binary_expr.op), "%c", op.lexeme[0]);
+        bin->as.binary_expr.lhs = lhs_val;
+        bin->as.binary_expr.rhs = one;
+
+        bin->type = unify_numeric(lhs_val->type, one->type);
+        if (bin->type == TYPE_UNKNOWN && lhs_val->type == TYPE_PTR) {
+            bin->type = TYPE_PTR;
+        }
+        if (bin->type == TYPE_UNKNOWN) {
+            parse_error(p, op, "invalid operand type for ++/--");
+        }
+
+        AstNode *assign = ast_new(AST_ASSIGN, op.line);
+        assign->as.assign_expr.target = xstrdup(target->as.ident_expr.name);
+        assign->as.assign_expr.value = bin;
+        assign->type = bin->type;
+
+        ast_free(target);
+        return assign;
+    }
+
+    if (match_op(p, "-") || match_op(p, "!") || match_op(p, "~") || match_op(p, "&") || match_op(p, "*")) {
         Token op = prev(p);
         AstNode *rhs = parse_unary(p);
         AstNode *n = ast_new(AST_UNARY, op.line);
@@ -293,7 +331,10 @@ static AstNode *parse_unary(Parser *p) {
         n->as.unary_expr.expr = rhs;
         if (op.length == 1 && op.lexeme[0] == '&') n->type = TYPE_PTR;
         else if (op.length == 1 && op.lexeme[0] == '*') n->type = TYPE_INT64;
-        else n->type = rhs->type;
+        else if (op.length == 1 && op.lexeme[0] == '~') {
+            n->type = rhs->type;
+            if (!numeric(rhs->type)) parse_error(p, op, "invalid type for bitwise not");
+        } else n->type = rhs->type;
         return n;
     }
     return parse_primary(p);
@@ -309,6 +350,11 @@ static AstNode *fold_binary(const char *op, AstNode *lhs, AstNode *rhs, int line
         else if (strcmp(op, "*") == 0) n->as.int_lit.value = a * b;
         else if (strcmp(op, "/") == 0 && b != 0) n->as.int_lit.value = a / b;
         else if (strcmp(op, "%") == 0 && b != 0) n->as.int_lit.value = a % b;
+        else if (strcmp(op, "&") == 0) n->as.int_lit.value = a & b;
+        else if (strcmp(op, "|") == 0) n->as.int_lit.value = a | b;
+        else if (strcmp(op, "^") == 0) n->as.int_lit.value = a ^ b;
+        else if (strcmp(op, "<<") == 0) n->as.int_lit.value = a << b;
+        else if (strcmp(op, ">>") == 0) n->as.int_lit.value = a >> b;
         else { ast_free(n); return NULL; }
         n->type = unify_numeric(lhs->type, rhs->type);
         return n;
@@ -355,18 +401,56 @@ static AstNode *parse_add(Parser *p) {
             continue;
         }
         n->type = unify_numeric(lhs->type, rhs->type);
+        if (n->type == TYPE_UNKNOWN) {
+            bool lhs_ptr = (lhs->type == TYPE_PTR);
+            bool rhs_ptr = (rhs->type == TYPE_PTR);
+            bool lhs_num = numeric(lhs->type);
+            bool rhs_num = numeric(rhs->type);
+            if (op.length == 1 && op.lexeme[0] == '+') {
+                if ((lhs_ptr && rhs_num) || (rhs_ptr && lhs_num)) {
+                    n->type = TYPE_PTR;
+                }
+            } else if (op.length == 1 && op.lexeme[0] == '-') {
+                if (lhs_ptr && rhs_num) {
+                    n->type = TYPE_PTR;
+                }
+            }
+        }
         if (n->type == TYPE_UNKNOWN) parse_error(p, op, "invalid types for additive operator");
         lhs = n;
     }
     return lhs;
 }
 
-static AstNode *parse_cmp(Parser *p) {
+
+static AstNode *parse_shift(Parser *p) {
     AstNode *lhs = parse_add(p);
+    while (match_op(p, "<<") || match_op(p, ">>")) {
+        Token op = prev(p);
+        AstNode *rhs = parse_add(p);
+        AstNode *n = ast_new(AST_BINARY, op.line);
+        snprintf(n->as.binary_expr.op, sizeof(n->as.binary_expr.op), "%.*s", (int)op.length, op.lexeme);
+        n->as.binary_expr.lhs = lhs;
+        n->as.binary_expr.rhs = rhs;
+        AstNode *folded = fold_binary(n->as.binary_expr.op, lhs, rhs, op.line);
+        if (folded) {
+            ast_free(n);
+            lhs = folded;
+            continue;
+        }
+        n->type = unify_numeric(lhs->type, rhs->type);
+        if (n->type == TYPE_UNKNOWN) parse_error(p, op, "invalid types for shift operator");
+        lhs = n;
+    }
+    return lhs;
+}
+
+static AstNode *parse_cmp(Parser *p) {
+    AstNode *lhs = parse_shift(p);
     while (match_op(p, "<") || match_op(p, ">") || match_op(p, "<=") || match_op(p, ">=") ||
            match_op(p, "==") || match_op(p, "!=")) {
         Token op = prev(p);
-        AstNode *rhs = parse_add(p);
+        AstNode *rhs = parse_shift(p);
         AstNode *n = ast_new(AST_BINARY, op.line);
         snprintf(n->as.binary_expr.op, sizeof(n->as.binary_expr.op), "%.*s", (int)op.length, op.lexeme);
         n->as.binary_expr.lhs = lhs;
@@ -377,11 +461,65 @@ static AstNode *parse_cmp(Parser *p) {
     return lhs;
 }
 
-static AstNode *parse_logic_and(Parser *p) {
+static AstNode *parse_bit_and(Parser *p) {
     AstNode *lhs = parse_cmp(p);
-    while (match_op(p, "&&")) {
+    while (match_op(p, "&")) {
         Token op = prev(p);
         AstNode *rhs = parse_cmp(p);
+        AstNode *n = ast_new(AST_BINARY, op.line);
+        snprintf(n->as.binary_expr.op, sizeof(n->as.binary_expr.op), "&");
+        n->as.binary_expr.lhs = lhs;
+        n->as.binary_expr.rhs = rhs;
+        AstNode *folded = fold_binary("&", lhs, rhs, op.line);
+        if (folded) { ast_free(n); lhs = folded; continue; }
+        n->type = unify_numeric(lhs->type, rhs->type);
+        if (n->type == TYPE_UNKNOWN) parse_error(p, op, "invalid types for bitwise '&'");
+        lhs = n;
+    }
+    return lhs;
+}
+
+static AstNode *parse_bit_xor(Parser *p) {
+    AstNode *lhs = parse_bit_and(p);
+    while (match_op(p, "^")) {
+        Token op = prev(p);
+        AstNode *rhs = parse_bit_and(p);
+        AstNode *n = ast_new(AST_BINARY, op.line);
+        snprintf(n->as.binary_expr.op, sizeof(n->as.binary_expr.op), "^");
+        n->as.binary_expr.lhs = lhs;
+        n->as.binary_expr.rhs = rhs;
+        AstNode *folded = fold_binary("^", lhs, rhs, op.line);
+        if (folded) { ast_free(n); lhs = folded; continue; }
+        n->type = unify_numeric(lhs->type, rhs->type);
+        if (n->type == TYPE_UNKNOWN) parse_error(p, op, "invalid types for bitwise '^'");
+        lhs = n;
+    }
+    return lhs;
+}
+
+static AstNode *parse_bit_or(Parser *p) {
+    AstNode *lhs = parse_bit_xor(p);
+    while (match_op(p, "|")) {
+        Token op = prev(p);
+        AstNode *rhs = parse_bit_xor(p);
+        AstNode *n = ast_new(AST_BINARY, op.line);
+        snprintf(n->as.binary_expr.op, sizeof(n->as.binary_expr.op), "|");
+        n->as.binary_expr.lhs = lhs;
+        n->as.binary_expr.rhs = rhs;
+        AstNode *folded = fold_binary("|", lhs, rhs, op.line);
+        if (folded) { ast_free(n); lhs = folded; continue; }
+        n->type = unify_numeric(lhs->type, rhs->type);
+        if (n->type == TYPE_UNKNOWN) parse_error(p, op, "invalid types for bitwise '|'");
+        lhs = n;
+    }
+    return lhs;
+}
+
+static AstNode *parse_logic_and(Parser *p) {
+    AstNode *lhs = parse_bit_or(p);
+    while (match_op(p, "&&")) {
+        Token op = prev(p);
+        AstNode *rhs = parse_bit_or(p);
         AstNode *n = ast_new(AST_BINARY, op.line);
         snprintf(n->as.binary_expr.op, sizeof(n->as.binary_expr.op), "&&");
         n->as.binary_expr.lhs = lhs;
@@ -409,17 +547,76 @@ static AstNode *parse_logic_or(Parser *p) {
 
 static AstNode *parse_assign(Parser *p) {
     AstNode *lhs = parse_logic_or(p);
-    if (match_op(p, "=")) {
+    if (match_op(p, "=") || match_op(p, "+=") || match_op(p, "-=") || match_op(p, "*=") || match_op(p, "/=") ||
+        match_op(p, "%=") || match_op(p, "&=") || match_op(p, "|=") || match_op(p, "^=") ||
+        match_op(p, "<<=") || match_op(p, ">>=")) {
         Token eq = prev(p);
         AstNode *rhs = parse_assign(p);
+
+        const char *compound_op = NULL;
+        if (eq.length == 2 && eq.lexeme[1] == '=') {
+            if (eq.lexeme[0] == '+') compound_op = "+";
+            else if (eq.lexeme[0] == '-') compound_op = "-";
+            else if (eq.lexeme[0] == '*') compound_op = "*";
+            else if (eq.lexeme[0] == '/') compound_op = "/";
+            else if (eq.lexeme[0] == '%') compound_op = "%";
+            else if (eq.lexeme[0] == '&') compound_op = "&";
+            else if (eq.lexeme[0] == '|') compound_op = "|";
+            else if (eq.lexeme[0] == '^') compound_op = "^";
+        } else if (eq.length == 3 && eq.lexeme[2] == '=') {
+            if (eq.lexeme[0] == '<' && eq.lexeme[1] == '<') compound_op = "<<";
+            else if (eq.lexeme[0] == '>' && eq.lexeme[1] == '>') compound_op = ">>";
+        }
+
         if (lhs->kind == AST_IDENTIFIER) {
+            AstNode *value = rhs;
+            if (compound_op) {
+                AstNode *lhs_val = ast_new(AST_IDENTIFIER, eq.line);
+                lhs_val->as.ident_expr.name = xstrdup(lhs->as.ident_expr.name);
+                lhs_val->type = lhs->type;
+
+                AstNode *bin = ast_new(AST_BINARY, eq.line);
+                snprintf(bin->as.binary_expr.op, sizeof(bin->as.binary_expr.op), "%s", compound_op);
+                bin->as.binary_expr.lhs = lhs_val;
+                bin->as.binary_expr.rhs = rhs;
+
+                if (strcmp(compound_op, "+") == 0 || strcmp(compound_op, "-") == 0) {
+                    bin->type = unify_numeric(lhs_val->type, rhs->type);
+                    if (bin->type == TYPE_UNKNOWN) {
+                        bool lhs_ptr = (lhs_val->type == TYPE_PTR);
+                        bool rhs_ptr = (rhs->type == TYPE_PTR);
+                        bool lhs_num = numeric(lhs_val->type);
+                        bool rhs_num = numeric(rhs->type);
+                        if (strcmp(compound_op, "+") == 0) {
+                            if ((lhs_ptr && rhs_num) || (rhs_ptr && lhs_num)) bin->type = TYPE_PTR;
+                        } else {
+                            if (lhs_ptr && rhs_num) bin->type = TYPE_PTR;
+                        }
+                    }
+                } else {
+                    bin->type = unify_numeric(lhs_val->type, rhs->type);
+                }
+
+                if (bin->type == TYPE_UNKNOWN) {
+                    parse_error(p, eq, "invalid types for compound assignment");
+                }
+                value = bin;
+            }
+
             AstNode *n = ast_new(AST_ASSIGN, eq.line);
             n->as.assign_expr.target = xstrdup(lhs->as.ident_expr.name);
-            n->as.assign_expr.value = rhs;
-            n->type = rhs->type;
+            n->as.assign_expr.value = value;
+            n->type = value->type;
             ast_free(lhs);
             return n;
         }
+
+        if (compound_op) {
+            parse_error(p, eq, "compound assignment currently supports identifiers only");
+            ast_free(rhs);
+            return lhs;
+        }
+
         if (lhs->kind == AST_UNARY && strcmp(lhs->as.unary_expr.op, "*") == 0) {
             AstNode *n = ast_new(AST_PTR_ASSIGN, eq.line);
             n->as.ptr_assign_expr.ptr = lhs->as.unary_expr.expr;

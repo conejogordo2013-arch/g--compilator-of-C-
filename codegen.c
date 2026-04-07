@@ -135,9 +135,51 @@ static int gen_expr(AstNode *n, IRProgram *ir) {
                 ir_emit(ir, IR_CMP, rhs, z, out, "==");
                 return out;
             }
+            if (strcmp(n->as.unary_expr.op, "~") == 0) {
+                int all1 = fresh_temp(ir);
+                ir_emit(ir, IR_MOVI, all1, -1, 0, "all1");
+                int out = fresh_temp(ir);
+                ir_emit(ir, IR_XOR, out, rhs, all1, "bnot");
+                return out;
+            }
             return rhs;
         }
         case AST_BINARY: {
+            if (strcmp(n->as.binary_expr.op, "&&") == 0) {
+                int out = fresh_temp(ir);
+                int lbl_false = fresh_label(ir);
+                int l = gen_expr(n->as.binary_expr.lhs, ir);
+                ir_emit(ir, IR_MOVI, out, 0, 0, "false");
+                ir_emit(ir, IR_JE, l, lbl_false, 0, "sc_and_lhs_false");
+                int r = gen_expr(n->as.binary_expr.rhs, ir);
+                ir_emit(ir, IR_JE, r, lbl_false, 0, "sc_and_rhs_false");
+                ir_emit(ir, IR_MOVI, out, 1, 0, "true");
+                char lf[32]; snprintf(lf, sizeof(lf), "L%d", lbl_false);
+                ir_emit(ir, IR_LABEL, lbl_false, 0, 0, lf);
+                return out;
+            }
+            if (strcmp(n->as.binary_expr.op, "||") == 0) {
+                int out = fresh_temp(ir);
+                int lbl_eval_rhs = fresh_label(ir);
+                int lbl_false = fresh_label(ir);
+                int lbl_end = fresh_label(ir);
+                int l = gen_expr(n->as.binary_expr.lhs, ir);
+                ir_emit(ir, IR_MOVI, out, 1, 0, "true");
+                ir_emit(ir, IR_JE, l, lbl_eval_rhs, 0, "sc_or_eval_rhs");
+                ir_emit(ir, IR_JMP, lbl_end, 0, 0, "sc_or_lhs_true");
+                char le[32]; snprintf(le, sizeof(le), "L%d", lbl_eval_rhs);
+                ir_emit(ir, IR_LABEL, lbl_eval_rhs, 0, 0, le);
+                int r = gen_expr(n->as.binary_expr.rhs, ir);
+                ir_emit(ir, IR_JE, r, lbl_false, 0, "sc_or_rhs_false");
+                ir_emit(ir, IR_JMP, lbl_end, 0, 0, "sc_or_rhs_true");
+                char lf[32]; snprintf(lf, sizeof(lf), "L%d", lbl_false);
+                ir_emit(ir, IR_LABEL, lbl_false, 0, 0, lf);
+                ir_emit(ir, IR_MOVI, out, 0, 0, "false");
+                char ln[32]; snprintf(ln, sizeof(ln), "L%d", lbl_end);
+                ir_emit(ir, IR_LABEL, lbl_end, 0, 0, ln);
+                return out;
+            }
+
             int l = gen_expr(n->as.binary_expr.lhs, ir);
             int r = gen_expr(n->as.binary_expr.rhs, ir);
             int out = fresh_temp(ir);
@@ -145,6 +187,12 @@ static int gen_expr(AstNode *n, IRProgram *ir) {
             else if (strcmp(n->as.binary_expr.op, "-") == 0) ir_emit(ir, IR_SUB, out, l, r, "sub");
             else if (strcmp(n->as.binary_expr.op, "*") == 0) ir_emit(ir, IR_MUL, out, l, r, "mul");
             else if (strcmp(n->as.binary_expr.op, "/") == 0) ir_emit(ir, IR_DIV, out, l, r, "div");
+            else if (strcmp(n->as.binary_expr.op, "%") == 0) ir_emit(ir, IR_MOD, out, l, r, "mod");
+            else if (strcmp(n->as.binary_expr.op, "&") == 0) ir_emit(ir, IR_AND, out, l, r, "and");
+            else if (strcmp(n->as.binary_expr.op, "|") == 0) ir_emit(ir, IR_OR, out, l, r, "or");
+            else if (strcmp(n->as.binary_expr.op, "^") == 0) ir_emit(ir, IR_XOR, out, l, r, "xor");
+            else if (strcmp(n->as.binary_expr.op, "<<") == 0) ir_emit(ir, IR_SHL, out, l, r, "shl");
+            else if (strcmp(n->as.binary_expr.op, ">>") == 0) ir_emit(ir, IR_SHR, out, l, r, "shr");
             else {
                 /* Comparison lowered to cmp + synthetic set; backend will convert using cmp/jcc. */
                 ir_emit(ir, IR_CMP, l, r, out, n->as.binary_expr.op);
@@ -332,7 +380,8 @@ void optimize_ir(IRProgram *ir) {
             continue;
         }
 
-        if ((in->op == IR_ADD || in->op == IR_SUB || in->op == IR_MUL || in->op == IR_DIV) &&
+        if ((in->op == IR_ADD || in->op == IR_SUB || in->op == IR_MUL || in->op == IR_DIV || in->op == IR_MOD ||
+             in->op == IR_AND || in->op == IR_OR || in->op == IR_XOR || in->op == IR_SHL || in->op == IR_SHR) &&
             in->a >= 0 && in->a < MAX_TEMPS &&
             in->b >= 0 && in->b < MAX_TEMPS &&
             in->c >= 0 && in->c < MAX_TEMPS &&
@@ -344,6 +393,19 @@ void optimize_ir(IRProgram *ir) {
             else if (in->op == IR_DIV) {
                 if (rhs == 0) continue;
                 out = lhs / rhs;
+            } else if (in->op == IR_MOD) {
+                if (rhs == 0) continue;
+                out = lhs % rhs;
+            } else if (in->op == IR_AND) {
+                out = lhs & rhs;
+            } else if (in->op == IR_OR) {
+                out = lhs | rhs;
+            } else if (in->op == IR_XOR) {
+                out = lhs ^ rhs;
+            } else if (in->op == IR_SHL) {
+                out = lhs << rhs;
+            } else if (in->op == IR_SHR) {
+                out = lhs >> rhs;
             }
             in->op = IR_MOVI;
             in->b = (int)out;
@@ -429,6 +491,12 @@ static void compute_frame_layout(IRProgram *ir, int *frame_size, int *locals_bas
             case IR_SUB:
             case IR_MUL:
             case IR_DIV:
+            case IR_MOD:
+            case IR_AND:
+            case IR_OR:
+            case IR_XOR:
+            case IR_SHL:
+            case IR_SHR:
             case IR_CMP:
             case IR_LOAD_IND:
             case IR_STORE_IND:
@@ -688,6 +756,39 @@ void emit_x86_64(IRProgram *ir, FILE *out) {
                 fprintf(out, "    mov rax, QWORD PTR [rbp-%d]\n", temp_offset(in->b));
                 fprintf(out, "    mov rbx, QWORD PTR [rbp-%d]\n", temp_offset(in->c));
                 fprintf(out, "    cqo\n    idiv rbx\n");
+                fprintf(out, "    mov QWORD PTR [rbp-%d], rax\n", temp_offset(in->a));
+                break;
+            case IR_MOD:
+                fprintf(out, "    mov rax, QWORD PTR [rbp-%d]\n", temp_offset(in->b));
+                fprintf(out, "    mov rbx, QWORD PTR [rbp-%d]\n", temp_offset(in->c));
+                fprintf(out, "    cqo\n    idiv rbx\n");
+                fprintf(out, "    mov QWORD PTR [rbp-%d], rdx\n", temp_offset(in->a));
+                break;
+            case IR_AND:
+                fprintf(out, "    mov rax, QWORD PTR [rbp-%d]\n", temp_offset(in->b));
+                fprintf(out, "    and rax, QWORD PTR [rbp-%d]\n", temp_offset(in->c));
+                fprintf(out, "    mov QWORD PTR [rbp-%d], rax\n", temp_offset(in->a));
+                break;
+            case IR_OR:
+                fprintf(out, "    mov rax, QWORD PTR [rbp-%d]\n", temp_offset(in->b));
+                fprintf(out, "    or rax, QWORD PTR [rbp-%d]\n", temp_offset(in->c));
+                fprintf(out, "    mov QWORD PTR [rbp-%d], rax\n", temp_offset(in->a));
+                break;
+            case IR_XOR:
+                fprintf(out, "    mov rax, QWORD PTR [rbp-%d]\n", temp_offset(in->b));
+                fprintf(out, "    xor rax, QWORD PTR [rbp-%d]\n", temp_offset(in->c));
+                fprintf(out, "    mov QWORD PTR [rbp-%d], rax\n", temp_offset(in->a));
+                break;
+            case IR_SHL:
+                fprintf(out, "    mov rax, QWORD PTR [rbp-%d]\n", temp_offset(in->b));
+                fprintf(out, "    mov rcx, QWORD PTR [rbp-%d]\n", temp_offset(in->c));
+                fprintf(out, "    shl rax, cl\n");
+                fprintf(out, "    mov QWORD PTR [rbp-%d], rax\n", temp_offset(in->a));
+                break;
+            case IR_SHR:
+                fprintf(out, "    mov rax, QWORD PTR [rbp-%d]\n", temp_offset(in->b));
+                fprintf(out, "    mov rcx, QWORD PTR [rbp-%d]\n", temp_offset(in->c));
+                fprintf(out, "    sar rax, cl\n");
                 fprintf(out, "    mov QWORD PTR [rbp-%d], rax\n", temp_offset(in->a));
                 break;
             case IR_CMP:
@@ -1039,6 +1140,43 @@ static void emit_aarch64(IRProgram *ir, FILE *out) {
                 fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->b));
                 fprintf(out, "    ldr x1, [sp, #%d]\n", temp_offset(in->c));
                 fprintf(out, "    sdiv x0, x0, x1\n");
+                fprintf(out, "    str x0, [sp, #%d]\n", temp_offset(in->a));
+                break;
+            case IR_MOD:
+                fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->b));
+                fprintf(out, "    ldr x1, [sp, #%d]\n", temp_offset(in->c));
+                fprintf(out, "    sdiv x2, x0, x1\n");
+                fprintf(out, "    msub x0, x2, x1, x0\n");
+                fprintf(out, "    str x0, [sp, #%d]\n", temp_offset(in->a));
+                break;
+            case IR_AND:
+                fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->b));
+                fprintf(out, "    ldr x1, [sp, #%d]\n", temp_offset(in->c));
+                fprintf(out, "    and x0, x0, x1\n");
+                fprintf(out, "    str x0, [sp, #%d]\n", temp_offset(in->a));
+                break;
+            case IR_OR:
+                fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->b));
+                fprintf(out, "    ldr x1, [sp, #%d]\n", temp_offset(in->c));
+                fprintf(out, "    orr x0, x0, x1\n");
+                fprintf(out, "    str x0, [sp, #%d]\n", temp_offset(in->a));
+                break;
+            case IR_XOR:
+                fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->b));
+                fprintf(out, "    ldr x1, [sp, #%d]\n", temp_offset(in->c));
+                fprintf(out, "    eor x0, x0, x1\n");
+                fprintf(out, "    str x0, [sp, #%d]\n", temp_offset(in->a));
+                break;
+            case IR_SHL:
+                fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->b));
+                fprintf(out, "    ldr x1, [sp, #%d]\n", temp_offset(in->c));
+                fprintf(out, "    lsl x0, x0, x1\n");
+                fprintf(out, "    str x0, [sp, #%d]\n", temp_offset(in->a));
+                break;
+            case IR_SHR:
+                fprintf(out, "    ldr x0, [sp, #%d]\n", temp_offset(in->b));
+                fprintf(out, "    ldr x1, [sp, #%d]\n", temp_offset(in->c));
+                fprintf(out, "    asr x0, x0, x1\n");
                 fprintf(out, "    str x0, [sp, #%d]\n", temp_offset(in->a));
                 break;
             case IR_CMP:

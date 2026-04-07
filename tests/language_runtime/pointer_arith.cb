@@ -1,0 +1,14 @@
+import system;
+extern int64 alloc(int64);
+extern void free(int64);
+int32 main() {
+    int64 p = alloc(24);
+    int64* a = p;
+    a += 8;
+    *a = 42;
+    int64 v = *a;
+    free(p);
+    if (v == 42) { system_exit(0); }
+    system_exit(1);
+    return 0;
+}
