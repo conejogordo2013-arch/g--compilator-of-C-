@@ -1,0 +1,6 @@
+import system;
+
+int32 main() {
+    system_exit(0);
+    return 0;
+}

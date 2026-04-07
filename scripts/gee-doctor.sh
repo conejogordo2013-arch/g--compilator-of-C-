@@ -31,6 +31,18 @@ else
 fi
 
 case "$ACTIVE" in
-  x86-64) echo "backend status  : implemented" ;;
-  *) echo "backend status  : frontend available, backend pending" ;;
+  x86-64|arm-64) echo "backend status  : implemented" ;;
+  *) echo "backend status  : unknown/legacy target" ;;
 esac
+
+if command -v as >/dev/null 2>&1 && command -v ld >/dev/null 2>&1; then
+  echo "asm/link tools  : native as/ld OK"
+else
+  echo "asm/link tools  : missing native as/ld"
+fi
+
+if command -v aarch64-linux-gnu-as >/dev/null 2>&1 && command -v aarch64-linux-gnu-ld >/dev/null 2>&1; then
+  echo "arm64 cross     : aarch64-linux-gnu-as/ld OK"
+else
+  echo "arm64 cross     : not found (optional on non-ARM hosts)"
+fi

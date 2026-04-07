@@ -20,13 +20,14 @@ case "$cmd" in
     fi
     ;;
   list)
-    printf "x86\nx86-64\narm-v7\narm-64\n"
+    printf "x86-64\narm-64\n"
     ;;
   set)
     target="${2:-}"
     case "$target" in
-      x86|x86-64|arm-v7|arm-64) ;;
-      *) echo "uso: gee-target set <x86|x86-64|arm-v7|arm-64>" >&2; exit 2 ;;
+      x86|x86-64|x86_64|amd64) target="x86-64" ;;
+      arm-64|arm64|aarch64) target="arm-64" ;;
+      *) echo "uso: gee-target set <x86-64|arm-64>" >&2; exit 2 ;;
     esac
     mkdir -p "$CFG_DIR"
     printf "%s\n" "$target" > "$CFG_FILE"

@@ -1,0 +1,10 @@
+import io;
+import system;
+
+int32 main() {
+    println(2026);
+    print_bool(1);
+    print_hex(255);
+    system_exit(0);
+    return 0;
+}

@@ -115,6 +115,34 @@ static void parse_ident(const char **p, const char *end, char *out, size_t cap) 
     out[n] = '\0';
 }
 
+static int preprocess_file_recursive(const char *path, PreCtx *ctx, char **out, size_t *out_len, size_t *out_cap, int depth);
+
+static int file_exists(const char *path) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return 0;
+    fclose(f);
+    return 1;
+}
+
+static int preprocess_import_module(const char *base_dir, const char *mod, PreCtx *ctx, char **out, size_t *out_len, size_t *out_cap, int depth) {
+    char rel[256];
+    snprintf(rel, sizeof(rel), "stdlib/%s.h", mod);
+    char *cand1 = join_path(base_dir, rel);
+    if (cand1 && file_exists(cand1) && preprocess_file_recursive(cand1, ctx, out, out_len, out_cap, depth + 1)) {
+        free(cand1);
+        return 1;
+    }
+    free(cand1);
+    char *cand2 = join_path(".", rel);
+    if (cand2 && file_exists(cand2) && preprocess_file_recursive(cand2, ctx, out, out_len, out_cap, depth + 1)) {
+        free(cand2);
+        return 1;
+    }
+    free(cand2);
+    fprintf(stderr, "warning: import module '%s' not found as stdlib header\n", mod);
+    return 1;
+}
+
 static int preprocess_file_recursive(const char *path, PreCtx *ctx, char **out, size_t *out_len, size_t *out_cap, int depth) {
     if (depth > 32) {
         fprintf(stderr, "error: include depth exceeded at '%s'\n", path);
@@ -143,6 +171,21 @@ static int preprocess_file_recursive(const char *path, PreCtx *ctx, char **out, 
 
         const char *q = skip_ws(line_start, line_end);
         int active = active_stack[sp - 1];
+        if (active && strncmp(q, "import", 6) == 0 && (q + 6 < line_end) && isspace((unsigned char)q[6])) {
+            q += 6;
+            q = skip_ws(q, line_end);
+            char mod[128];
+            parse_ident(&q, line_end, mod, sizeof(mod));
+            q = skip_ws(q, line_end);
+            if (mod[0] && q < line_end && *q == ';') {
+                if (!preprocess_import_module(base, mod, ctx, out, out_len, out_cap, depth)) {
+                    free(base);
+                    free(src);
+                    return 0;
+                }
+                continue;
+            }
+        }
         if (q < line_end && *q == '#') {
             q++;
             q = skip_ws(q, line_end);

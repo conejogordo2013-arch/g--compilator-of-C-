@@ -24,23 +24,28 @@ if [[ -z "$TARGET" ]]; then
 fi
 
 case "$TARGET" in
-  x86-64|x86_64)
-    if [[ ! -x "$CORE_BIN" ]]; then
-      echo "error: missing gee-core at $CORE_BIN" >&2
-      echo "run: make install PREFIX=$PREFIX" >&2
-      exit 2
-    fi
-    exec "$CORE_BIN" "$@"
+  x86|x86-64|x86_64|amd64)
+    TARGET="x86-64"
     ;;
-  x86|arm-v7|arm-64|arm64|armv7)
-    echo "error: target '$TARGET' frontend installed, but backend is not implemented yet." >&2
-    echo "current backend available: x86-64." >&2
-    echo "use: GEE_TARGET=x86-64 gee <input.cb> [output.s]" >&2
-    exit 3
+  arm-64|arm64|aarch64)
+    TARGET="arm-64"
+    ;;
+  arm-v7|armv7)
+    echo "error: target '$TARGET' no está soportado todavía." >&2
+    echo "valid: x86-64, arm-64" >&2
+    exit 2
     ;;
   *)
     echo "error: unknown GEE_TARGET '$TARGET'" >&2
-    echo "valid: x86, x86-64, arm-v7, arm-64" >&2
+    echo "valid: x86-64, arm-64" >&2
     exit 2
     ;;
 esac
+
+if [[ ! -x "$CORE_BIN" ]]; then
+  echo "error: missing gee-core at $CORE_BIN" >&2
+  echo "run: make install PREFIX=$PREFIX" >&2
+  exit 2
+fi
+
+exec env GEE_TARGET="$TARGET" "$CORE_BIN" "$@"
