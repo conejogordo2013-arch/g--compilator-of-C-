@@ -39,7 +39,7 @@ case "$TARGET" in
       LD_BIN="${LD_BIN:-aarch64-linux-gnu-ld}"
     fi
     AS_FLAGS=()
-    STDLIB_FILES=(stdlib/io_nocc_arm64.s stdlib/memory_arm64.s stdlib/net_arm64.s stdlib/system_arm64.s)
+    STDLIB_FILES=(stdlib/io_nocc_arm64.s stdlib/memory_nocc_arm64.s stdlib/net_arm64.s stdlib/system_nocc_arm64.s)
     ;;
   *)
     echo "target no soportado: $TARGET" >&2

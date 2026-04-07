@@ -1,0 +1,82 @@
+import io;
+
+struct OopsCircle { int32 type_id; int32 parent_type_id; int32 alive; int32 flags; int32 x; int32 y; int32 color; int32 radius; };
+
+extern void oops_circle_init(struct OopsCircle*, int32, int32);
+extern void oops_circle_scale(struct OopsCircle*, int32);
+extern int32 oops_circle_area_approx(struct OopsCircle*);
+extern int32 oops_circle_perimeter_approx(struct OopsCircle*);
+
+int64 clean_i32(int32 x) {
+    int64 y = x;
+    y = y << 32;
+    y = y >> 32;
+    return y;
+}
+
+void check_i64(int64 got, int64 expected) {
+    if (got < expected) { print_bool(0); return; }
+    if (got > expected) { print_bool(0); return; }
+    print_bool(1);
+}
+
+int32 main() {
+    struct OopsCircle cA;
+    struct OopsCircle cB;
+    struct OopsCircle cC;
+
+    // "Sistema" de 3 objetos OOP
+    oops_circle_init(&cA, 3, 1);
+    oops_circle_init(&cB, 5, 2);
+    oops_circle_init(&cC, 7, 3);
+
+    // Transformaciones encadenadas
+    oops_circle_scale(&cA, 2); // r=6
+    oops_circle_scale(&cB, 3); // r=15
+    oops_circle_scale(&cC, 1); // r=7
+
+    int64 areaA = clean_i32(oops_circle_area_approx(&cA));   // 108
+    int64 perA  = clean_i32(oops_circle_perimeter_approx(&cA)); // 36
+    int64 areaB = clean_i32(oops_circle_area_approx(&cB));   // 675
+    int64 perB  = clean_i32(oops_circle_perimeter_approx(&cB)); // 90
+    int64 areaC = clean_i32(oops_circle_area_approx(&cC));   // 147
+    int64 perC  = clean_i32(oops_circle_perimeter_approx(&cC)); // 42
+
+    // Ranking por área (lógica de comparación entre objetos)
+    int64 rankAB = 0; // 1 si A>B, -1 si A<B
+    int64 rankBC = 0;
+    int64 rankCA = 0;
+
+    if (areaA > areaB) rankAB = 1;
+    if (areaA < areaB) rankAB = -1;
+
+    if (areaB > areaC) rankBC = 1;
+    if (areaB < areaC) rankBC = -1;
+
+    if (areaC > areaA) rankCA = 1;
+    if (areaC < areaA) rankCA = -1;
+
+    // Salida numérica compleja
+    println(areaA);
+    println(perA);
+    println(areaB);
+    println(perB);
+    println(areaC);
+    println(perC);
+    println(rankAB);
+    println(rankBC);
+    println(rankCA);
+
+    // Checks esperados: todo true
+    check_i64(areaA, 108);
+    check_i64(perA, 36);
+    check_i64(areaB, 675);
+    check_i64(perB, 90);
+    check_i64(areaC, 147);
+    check_i64(perC, 42);
+    check_i64(rankAB, -1);
+    check_i64(rankBC, 1);
+    check_i64(rankCA, 1);
+
+    return 0;
+}

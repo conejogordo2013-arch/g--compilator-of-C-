@@ -1,0 +1,56 @@
+import io;
+
+struct OopsCircle { int32 type_id; int32 parent_type_id; int32 alive; int32 flags; int32 x; int32 y; int32 color; int32 radius; };
+
+extern void oops_circle_init(struct OopsCircle*, int32, int32);
+extern void oops_circle_scale(struct OopsCircle*, int32);
+extern int32 oops_circle_area_approx(struct OopsCircle*);
+extern int32 oops_circle_perimeter_approx(struct OopsCircle*);
+
+int64 clean_i32(int32 x) {
+    int64 y = x;
+    y = y << 32;
+    y = y >> 32;
+    return y;
+}
+
+void check_i64(int64 got, int64 expected) {
+    if (got < expected) { print_bool(0); return; }
+    if (got > expected) { print_bool(0); return; }
+    print_bool(1);
+}
+
+int32 main() {
+    struct OopsCircle c1;
+    struct OopsCircle c2;
+
+    oops_circle_init(&c1, 5, 7);
+    oops_circle_init(&c2, 3, 9);
+    oops_circle_scale(&c1, 2); // r=10
+    oops_circle_scale(&c2, 3); // r=9
+
+    int64 area_c1 = clean_i32(oops_circle_area_approx(&c1)); // 300
+    int64 per_c1  = clean_i32(oops_circle_perimeter_approx(&c1)); // 60
+    int64 area_c2 = clean_i32(oops_circle_area_approx(&c2)); // 243
+    int64 per_c2  = clean_i32(oops_circle_perimeter_approx(&c2)); // 54
+
+    int64 cmp = 0;
+    if (area_c1 > area_c2) cmp = 1;
+    if (area_c1 < area_c2) cmp = -1;
+
+    // Números de comparación
+    println(area_c1);
+    println(per_c1);
+    println(area_c2);
+    println(per_c2);
+    println(cmp);
+
+    // Validación esperada (true true true true true)
+    check_i64(area_c1, 300);
+    check_i64(per_c1, 60);
+    check_i64(area_c2, 243);
+    check_i64(per_c2, 54);
+    check_i64(cmp, 1);
+
+    return 0;
+}

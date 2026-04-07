@@ -50,8 +50,8 @@ case "$TARGET" in
       LD_BIN="${LD_BIN:-aarch64-linux-gnu-ld}"
     fi
     AS_FLAGS=()
-    STDLIB_SYSTEM="stdlib/system_arm64.s"
-    STDLIB_MEMORY="stdlib/memory_arm64.s"
+    STDLIB_SYSTEM="stdlib/system_nocc_arm64.s"
+    STDLIB_MEMORY="stdlib/memory_nocc_arm64.s"
     STDLIB_NET="stdlib/net_arm64.s"
     ;;
   *)

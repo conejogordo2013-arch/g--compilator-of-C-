@@ -1,0 +1,327 @@
+// stdlib/oops.cb - OOP avanzado para C! sin tocar el compilador.
+
+int32 oops_type_object() { return 1; }
+int32 oops_type_shape() { return 10; }
+int32 oops_type_rect() { return 11; }
+int32 oops_type_circle() { return 12; }
+int32 oops_type_triangle() { return 13; }
+
+int32 oops_m_area() { return 100; }
+int32 oops_m_perimeter() { return 101; }
+int32 oops_m_move() { return 102; }
+int32 oops_m_scale() { return 103; }
+int32 oops_m_set_color() { return 104; }
+int32 oops_m_get_color() { return 105; }
+int32 oops_m_get_x() { return 106; }
+int32 oops_m_get_y() { return 107; }
+
+int32 oops_eq_i32(int32 a, int32 b) {
+    if (a < b) return 0;
+    if (a > b) return 0;
+    return 1;
+}
+
+struct OopsObject {
+    int32 type_id;
+    int32 parent_type_id;
+    int32 alive;
+    int32 flags;
+};
+
+struct OopsShape {
+    int32 type_id;
+    int32 parent_type_id;
+    int32 alive;
+    int32 flags;
+    int32 x;
+    int32 y;
+    int32 color;
+};
+
+struct OopsRect {
+    int32 type_id;
+    int32 parent_type_id;
+    int32 alive;
+    int32 flags;
+    int32 x;
+    int32 y;
+    int32 color;
+    int32 w;
+    int32 h;
+};
+
+struct OopsCircle {
+    int32 type_id;
+    int32 parent_type_id;
+    int32 alive;
+    int32 flags;
+    int32 x;
+    int32 y;
+    int32 color;
+    int32 radius;
+};
+
+struct OopsTriangle {
+    int32 type_id;
+    int32 parent_type_id;
+    int32 alive;
+    int32 flags;
+    int32 x;
+    int32 y;
+    int32 color;
+    int32 base;
+    int32 height;
+};
+
+void oops_object_init(struct OopsObject* o, int32 type_id, int32 parent_type_id) {
+    o->type_id = type_id;
+    o->parent_type_id = parent_type_id;
+    o->alive = 1;
+    o->flags = 0;
+}
+
+void oops_object_destroy(struct OopsObject* o) { o->alive = 0; }
+
+int32 oops_is_alive(struct OopsObject* o) {
+    if (!oops_eq_i32(o->alive, 0)) return 1;
+    return 0;
+}
+
+int32 oops_instanceof(struct OopsObject* o, int32 wanted_type) {
+    if (oops_eq_i32(o->type_id, wanted_type)) return 1;
+    if (oops_eq_i32(o->parent_type_id, wanted_type)) return 1;
+    if (oops_eq_i32(o->parent_type_id, oops_type_shape()) && oops_eq_i32(wanted_type, oops_type_object())) return 1;
+    return 0;
+}
+
+void oops_shape_init(struct OopsShape* s, int32 color) {
+    s->type_id = oops_type_shape();
+    s->parent_type_id = oops_type_object();
+    s->alive = 1;
+    s->flags = 0;
+    s->x = 0;
+    s->y = 0;
+    s->color = color;
+}
+
+void oops_rect_init(struct OopsRect* r, int32 w, int32 h, int32 color) {
+    r->type_id = oops_type_rect();
+    r->parent_type_id = oops_type_shape();
+    r->alive = 1;
+    r->flags = 0;
+    r->x = 0;
+    r->y = 0;
+    r->color = color;
+    if (w < 0) w = 0;
+    if (h < 0) h = 0;
+    r->w = w;
+    r->h = h;
+}
+
+void oops_circle_init(struct OopsCircle* c, int32 radius, int32 color) {
+    c->type_id = oops_type_circle();
+    c->parent_type_id = oops_type_shape();
+    c->alive = 1;
+    c->flags = 0;
+    c->x = 0;
+    c->y = 0;
+    c->color = color;
+    if (radius < 0) radius = 0;
+    c->radius = radius;
+}
+
+void oops_triangle_init(struct OopsTriangle* t, int32 base, int32 height, int32 color) {
+    t->type_id = oops_type_triangle();
+    t->parent_type_id = oops_type_shape();
+    t->alive = 1;
+    t->flags = 0;
+    t->x = 0;
+    t->y = 0;
+    t->color = color;
+    if (base < 0) base = 0;
+    if (height < 0) height = 0;
+    t->base = base;
+    t->height = height;
+}
+
+int32 oops_rect_area(struct OopsRect* r) { return r->w * r->h; }
+int32 oops_rect_perimeter(struct OopsRect* r) { return 2 * (r->w + r->h); }
+int32 oops_circle_area_approx(struct OopsCircle* c) { return 3 * c->radius * c->radius; }
+int32 oops_circle_perimeter_approx(struct OopsCircle* c) { return 6 * c->radius; }
+int32 oops_triangle_area_approx(struct OopsTriangle* t) { return (t->base * t->height) / 2; }
+int32 oops_triangle_perimeter_approx(struct OopsTriangle* t) {
+    int32 side = t->height;
+    if (t->base > side) side = t->base;
+    return t->base + side + side;
+}
+
+void oops_shape_move(struct OopsShape* s, int32 dx, int32 dy) {
+    s->x = s->x + dx;
+    s->y = s->y + dy;
+}
+
+void oops_rect_scale(struct OopsRect* r, int32 factor) {
+    if (factor <= 0) return;
+    r->w = r->w * factor;
+    r->h = r->h * factor;
+}
+
+void oops_circle_scale(struct OopsCircle* c, int32 factor) {
+    if (factor <= 0) return;
+    c->radius = c->radius * factor;
+}
+
+void oops_triangle_scale(struct OopsTriangle* t, int32 factor) {
+    if (factor <= 0) return;
+    t->base = t->base * factor;
+    t->height = t->height * factor;
+}
+
+int32 oops_call(struct OopsObject* obj, int32 method_id, int32 a, int32 b) {
+    if (!oops_is_alive(obj)) return 0;
+
+    if (oops_instanceof(obj, oops_type_shape())) {
+        struct OopsShape* s = obj;
+        if (oops_eq_i32(method_id, oops_m_move())) { oops_shape_move(s, a, b); return 1; }
+        if (oops_eq_i32(method_id, oops_m_set_color())) { s->color = a; return 1; }
+        if (oops_eq_i32(method_id, oops_m_get_color())) return s->color;
+        if (oops_eq_i32(method_id, oops_m_get_x())) return s->x;
+        if (oops_eq_i32(method_id, oops_m_get_y())) return s->y;
+    }
+
+    if (oops_eq_i32(obj->type_id, oops_type_rect())) {
+        struct OopsRect* r = obj;
+        if (oops_eq_i32(method_id, oops_m_area())) return oops_rect_area(r);
+        if (oops_eq_i32(method_id, oops_m_perimeter())) return oops_rect_perimeter(r);
+        if (oops_eq_i32(method_id, oops_m_scale())) { oops_rect_scale(r, a); return 1; }
+    }
+
+    if (oops_eq_i32(obj->type_id, oops_type_circle())) {
+        struct OopsCircle* c = obj;
+        if (oops_eq_i32(method_id, oops_m_area())) return oops_circle_area_approx(c);
+        if (oops_eq_i32(method_id, oops_m_perimeter())) return oops_circle_perimeter_approx(c);
+        if (oops_eq_i32(method_id, oops_m_scale())) { oops_circle_scale(c, a); return 1; }
+    }
+
+    if (oops_eq_i32(obj->type_id, oops_type_triangle())) {
+        struct OopsTriangle* t = obj;
+        if (oops_eq_i32(method_id, oops_m_area())) return oops_triangle_area_approx(t);
+        if (oops_eq_i32(method_id, oops_m_perimeter())) return oops_triangle_perimeter_approx(t);
+        if (oops_eq_i32(method_id, oops_m_scale())) { oops_triangle_scale(t, a); return 1; }
+    }
+
+    if (oops_eq_i32(obj->type_id, oops_type_shape())) {
+        if (oops_eq_i32(method_id, oops_m_area())) return 0;
+        if (oops_eq_i32(method_id, oops_m_perimeter())) return 0;
+    }
+
+    return 0;
+}
+
+int32 oops_area(struct OopsObject* o) { return oops_call(o, oops_m_area(), 0, 0); }
+int32 oops_perimeter(struct OopsObject* o) { return oops_call(o, oops_m_perimeter(), 0, 0); }
+void oops_move(struct OopsObject* o, int32 dx, int32 dy) { oops_call(o, oops_m_move(), dx, dy); }
+void oops_scale(struct OopsObject* o, int32 factor) { oops_call(o, oops_m_scale(), factor, 0); }
+void oops_set_color(struct OopsObject* o, int32 color) { oops_call(o, oops_m_set_color(), color, 0); }
+int32 oops_get_color(struct OopsObject* o) { return oops_call(o, oops_m_get_color(), 0, 0); }
+int32 oops_get_x(struct OopsObject* o) { return oops_call(o, oops_m_get_x(), 0, 0); }
+int32 oops_get_y(struct OopsObject* o) { return oops_call(o, oops_m_get_y(), 0, 0); }
+
+// =========================
+// Comparación de objetos
+// =========================
+// oops_eq: 1 si son equivalentes por tipo + estado + datos relevantes.
+// oops_cmp_area: -1 / 0 / 1 comparando área polimórfica.
+
+int32 oops_eq(struct OopsObject* a, struct OopsObject* b) {
+    if (!oops_eq_i32(a->type_id, b->type_id)) return 0;
+    if (!oops_eq_i32(a->alive, b->alive)) return 0;
+    if (!oops_eq_i32(a->flags, b->flags)) return 0;
+
+    if (oops_eq_i32(a->type_id, oops_type_rect())) {
+        struct OopsRect* ar = a;
+        struct OopsRect* br = b;
+        if (!oops_eq_i32(ar->x, br->x)) return 0;
+        if (!oops_eq_i32(ar->y, br->y)) return 0;
+        if (!oops_eq_i32(ar->color, br->color)) return 0;
+        if (!oops_eq_i32(ar->w, br->w)) return 0;
+        if (!oops_eq_i32(ar->h, br->h)) return 0;
+        return 1;
+    }
+
+    if (oops_eq_i32(a->type_id, oops_type_circle())) {
+        struct OopsCircle* ac = a;
+        struct OopsCircle* bc = b;
+        if (!oops_eq_i32(ac->x, bc->x)) return 0;
+        if (!oops_eq_i32(ac->y, bc->y)) return 0;
+        if (!oops_eq_i32(ac->color, bc->color)) return 0;
+        if (!oops_eq_i32(ac->radius, bc->radius)) return 0;
+        return 1;
+    }
+
+    if (oops_eq_i32(a->type_id, oops_type_triangle())) {
+        struct OopsTriangle* at = a;
+        struct OopsTriangle* bt = b;
+        if (!oops_eq_i32(at->x, bt->x)) return 0;
+        if (!oops_eq_i32(at->y, bt->y)) return 0;
+        if (!oops_eq_i32(at->color, bt->color)) return 0;
+        if (!oops_eq_i32(at->base, bt->base)) return 0;
+        if (!oops_eq_i32(at->height, bt->height)) return 0;
+        return 1;
+    }
+
+    if (oops_eq_i32(a->type_id, oops_type_shape())) {
+        struct OopsShape* as = a;
+        struct OopsShape* bs = b;
+        if (!oops_eq_i32(as->x, bs->x)) return 0;
+        if (!oops_eq_i32(as->y, bs->y)) return 0;
+        if (!oops_eq_i32(as->color, bs->color)) return 0;
+        return 1;
+    }
+
+    return 1;
+}
+
+int32 oops_cmp_area(struct OopsObject* a, struct OopsObject* b) {
+    int32 aa = oops_area(a);
+    int32 bb = oops_area(b);
+    if (aa < bb) return -1;
+    if (aa > bb) return 1;
+    return 0;
+}
+
+// Mantiene APIs públicas marcadas como "referenced" para evitar DCE
+// al compilar esta librería como unidad separada.
+void oops_keepalive_exports() {
+    struct OopsRect r;
+    struct OopsCircle c;
+    struct OopsTriangle t;
+    struct OopsShape s;
+
+    oops_shape_init(&s, 1);
+    oops_rect_init(&r, 1, 1, 1);
+    oops_circle_init(&c, 1, 1);
+    oops_triangle_init(&t, 1, 1, 1);
+
+    oops_rect_area(&r);
+    oops_rect_perimeter(&r);
+    oops_circle_area_approx(&c);
+    oops_circle_perimeter_approx(&c);
+    oops_triangle_area_approx(&t);
+    oops_triangle_perimeter_approx(&t);
+
+    oops_move(&r, 0, 0);
+    oops_scale(&r, 1);
+    oops_set_color(&r, 1);
+    oops_get_color(&r);
+    oops_get_x(&r);
+    oops_get_y(&r);
+    oops_area(&r);
+    oops_perimeter(&r);
+    oops_eq(&r, &r);
+    oops_cmp_area(&r, &c);
+
+    oops_object_destroy(&c);
+    oops_is_alive(&c);
+    oops_instanceof(&r, oops_type_shape());
+}

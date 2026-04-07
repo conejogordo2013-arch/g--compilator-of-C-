@@ -1,0 +1,55 @@
+import system;
+
+struct OopsObject { int32 type_id; int32 parent_type_id; int32 alive; int32 flags; };
+struct OopsRect { int32 type_id; int32 parent_type_id; int32 alive; int32 flags; int32 x; int32 y; int32 color; int32 w; int32 h; };
+struct OopsCircle { int32 type_id; int32 parent_type_id; int32 alive; int32 flags; int32 x; int32 y; int32 color; int32 radius; };
+struct OopsTriangle { int32 type_id; int32 parent_type_id; int32 alive; int32 flags; int32 x; int32 y; int32 color; int32 base; int32 height; };
+
+extern void oops_rect_init(struct OopsRect*, int32, int32, int32);
+extern void oops_circle_init(struct OopsCircle*, int32, int32);
+extern void oops_triangle_init(struct OopsTriangle*, int32, int32, int32);
+
+extern int32 oops_area(struct OopsObject*);
+extern int32 oops_perimeter(struct OopsObject*);
+extern void oops_move(struct OopsObject*, int32, int32);
+extern void oops_scale(struct OopsObject*, int32);
+extern void oops_set_color(struct OopsObject*, int32);
+extern int32 oops_get_color(struct OopsObject*);
+extern int32 oops_get_x(struct OopsObject*);
+extern int32 oops_get_y(struct OopsObject*);
+extern void oops_object_destroy(struct OopsObject*);
+
+int32 main() {
+    struct OopsRect r;
+    struct OopsCircle c;
+    struct OopsTriangle t;
+
+    oops_rect_init(&r, 4, 6, 7);
+    oops_circle_init(&c, 3, 8);
+    oops_triangle_init(&t, 6, 4, 9);
+
+    // Polimorfismo por dispatch dinámico.
+    oops_area(&r);
+    oops_area(&c);
+    oops_area(&t);
+    oops_perimeter(&r);
+    oops_perimeter(&c);
+    oops_perimeter(&t);
+
+    // Métodos comunes de Shape.
+    oops_move(&r, 5, -2);
+    oops_scale(&r, 2);
+    oops_scale(&c, 2);
+    oops_scale(&t, 3);
+    oops_set_color(&r, 99);
+    oops_get_color(&r);
+    oops_get_x(&r);
+    oops_get_y(&r);
+
+    // Lifecycle.
+    oops_object_destroy(&c);
+    oops_area(&c); // devuelve 0 si ya no está vivo.
+
+    system_exit(0);
+    return 0;
+}
