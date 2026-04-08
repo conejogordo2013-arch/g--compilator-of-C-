@@ -125,12 +125,22 @@ static int file_exists(const char *path) {
 }
 
 static int try_import_candidate(const char *root, const char *mod, PreCtx *ctx, char **out, size_t *out_len, size_t *out_cap, int depth) {
-    char rel[256];
-    snprintf(rel, sizeof(rel), "stdlib/%s.h", mod);
-    char *cand = join_path(root, rel);
-    if (!cand) return 0;
-    int ok = file_exists(cand) && preprocess_file_recursive(cand, ctx, out, out_len, out_cap, depth + 1);
-    free(cand);
+    char rel_stdlib[256];
+    char rel_local[256];
+    snprintf(rel_stdlib, sizeof(rel_stdlib), "stdlib/%s.h", mod);
+    snprintf(rel_local, sizeof(rel_local), "%s.h", mod);
+
+    char *cand_stdlib = join_path(root, rel_stdlib);
+    if (cand_stdlib) {
+        int ok = file_exists(cand_stdlib) && preprocess_file_recursive(cand_stdlib, ctx, out, out_len, out_cap, depth + 1);
+        free(cand_stdlib);
+        if (ok) return 1;
+    }
+
+    char *cand_local = join_path(root, rel_local);
+    if (!cand_local) return 0;
+    int ok = file_exists(cand_local) && preprocess_file_recursive(cand_local, ctx, out, out_len, out_cap, depth + 1);
+    free(cand_local);
     return ok;
 }
 
@@ -147,6 +157,10 @@ static int try_import_roots_list(const char *roots, const char *mod, PreCtx *ctx
             *next = '\0';
             next++;
         }
+        while (*tok && isspace((unsigned char)*tok)) tok++;
+        char *end = tok + strlen(tok);
+        while (end > tok && isspace((unsigned char)end[-1])) end--;
+        *end = '\0';
         if (*tok == '\0') {
             tok = next;
             continue;
@@ -167,7 +181,7 @@ static int preprocess_import_module(const char *base_dir, const char *mod, PreCt
     if (try_import_roots_list(getenv("GEE_STDLIB"), mod, ctx, out, out_len, out_cap, depth)) return 1;
     if (try_import_roots_list(getenv("GEE_PATH"), mod, ctx, out, out_len, out_cap, depth)) return 1;
     fprintf(stderr,
-            "error: import module '%s' not found. searched: <file_dir>/stdlib, ./stdlib, GEE_STDLIB, GEE_PATH\n",
+            "error: import module '%s' not found. searched: <file_dir>/{stdlib/,}, ./{stdlib/,}, GEE_STDLIB, GEE_PATH\n",
             mod);
     return 0;
 }
@@ -189,9 +203,11 @@ static int preprocess_file_recursive(const char *path, PreCtx *ctx, char **out, 
 
     int active_stack[64];
     int cond_stack[64];
+    int else_seen[64];
     int sp = 0;
     active_stack[sp++] = 1;
     cond_stack[0] = 1;
+    else_seen[0] = 0;
 
     const char *p = src;
     while (*p) {
@@ -253,7 +269,13 @@ static int preprocess_file_recursive(const char *path, PreCtx *ctx, char **out, 
                 if (sp < 64) {
                     active_stack[sp] = active && cond;
                     cond_stack[sp] = cond;
+                    else_seen[sp] = 0;
                     sp++;
+                } else {
+                    fprintf(stderr, "error: preprocessor conditional nesting too deep at '%s'\n", path);
+                    free(base);
+                    free(src);
+                    return 0;
                 }
                 continue;
             } else if (strncmp(q, "ifdef", 5) == 0) {
@@ -263,17 +285,40 @@ static int preprocess_file_recursive(const char *path, PreCtx *ctx, char **out, 
                 if (sp < 64) {
                     active_stack[sp] = active && cond;
                     cond_stack[sp] = cond;
+                    else_seen[sp] = 0;
                     sp++;
+                } else {
+                    fprintf(stderr, "error: preprocessor conditional nesting too deep at '%s'\n", path);
+                    free(base);
+                    free(src);
+                    return 0;
                 }
                 continue;
             } else if (strncmp(q, "else", 4) == 0) {
                 if (sp > 1) {
+                    if (else_seen[sp - 1]) {
+                        fprintf(stderr, "error: duplicate #else in conditional block at '%s'\n", path);
+                        free(base);
+                        free(src);
+                        return 0;
+                    }
                     int parent_active = active_stack[sp - 2];
                     int original_cond = cond_stack[sp - 1];
                     active_stack[sp - 1] = parent_active && !original_cond;
                     cond_stack[sp - 1] = 1;
+                    else_seen[sp - 1] = 1;
+                } else {
+                    fprintf(stderr, "error: unexpected #else without matching #if at '%s'\n", path);
+                    free(base);
+                    free(src);
+                    return 0;
                 }
                 continue;
+            } else if (strncmp(q, "elif", 4) == 0) {
+                fprintf(stderr, "error: #elif is not supported yet in '%s' (use nested #if/#else)\n", path);
+                free(base);
+                free(src);
+                return 0;
             } else if (strncmp(q, "define", 6) == 0) {
                 q += 6; q = skip_ws(q, line_end);
                 if (active) {
@@ -283,6 +328,12 @@ static int preprocess_file_recursive(const char *path, PreCtx *ctx, char **out, 
                 continue;
             } else if (strncmp(q, "endif", 5) == 0) {
                 if (sp > 1) sp--;
+                else {
+                    fprintf(stderr, "error: unexpected #endif without matching #if at '%s'\n", path);
+                    free(base);
+                    free(src);
+                    return 0;
+                }
                 continue;
             }
         }
@@ -291,6 +342,13 @@ static int preprocess_file_recursive(const char *path, PreCtx *ctx, char **out, 
             append_buf(out, out_len, out_cap, line_start, line_len);
             append_buf(out, out_len, out_cap, "\n", 1);
         }
+    }
+
+    if (sp != 1) {
+        fprintf(stderr, "error: unterminated preprocessor conditional in '%s'\n", path);
+        free(base);
+        free(src);
+        return 0;
     }
 
     free(base);

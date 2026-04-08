@@ -186,6 +186,9 @@ static AstNode *parse_primary(Parser *p) {
     }
     if (t.kind == TOK_INTEGER) {
         p->current++;
+        if (t.length == 2 && t.lexeme[0] == '0' && (t.lexeme[1] == 'x' || t.lexeme[1] == 'X')) {
+            parse_error(p, t, "invalid hexadecimal literal (missing digits after 0x)");
+        }
         AstNode *n = ast_new(AST_INT_LITERAL, t.line);
         n->type = TYPE_INT64;
         n->as.int_lit.value = t.int_value;

@@ -1,0 +1,7 @@
+import stdio_compat;
+
+int32 main() {
+    puts("stdio_compat demo");
+    puts("printf/puts bridge ready");
+    return 0;
+}

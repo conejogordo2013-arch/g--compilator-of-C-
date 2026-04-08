@@ -107,10 +107,13 @@ test-frontend-robustness:
 test-complex-cases:
 	bash scripts/test-complex-cases.sh
 
+test-stutilsio:
+	bash scripts/test-stutilsio.sh
+
 compat-matrix:
 	bash scripts/compat-matrix.sh
 
-quality-gate: selfhost-audit test-language-runtime test-frontend-robustness test-complex-cases compat-matrix
+quality-gate: selfhost-audit test-language-runtime test-frontend-robustness test-complex-cases test-stutilsio compat-matrix
 
 abi-interop:
 	bash scripts/abi-interop-runner.sh
@@ -121,4 +124,7 @@ test: all-tests
 dev-test:
 	bash scripts/gee-dev-test.sh
 
-.PHONY: all stage0 original advanced bootstrap bootstrap-smoke bootstrap-no-cc bootstrap-no-cc-smoke no-cc-demo run-example no-cc-proof arm-stdlib selfhost-audit test-language-runtime test-frontend-robustness test-complex-cases compat-matrix quality-gate abi-interop all-tests test dev-test clean install uninstall install-menu
+smoke-hola-mundo:
+	bash scripts/smoke-hola-mundo.sh
+
+.PHONY: all stage0 original advanced bootstrap bootstrap-smoke bootstrap-no-cc bootstrap-no-cc-smoke no-cc-demo run-example no-cc-proof arm-stdlib selfhost-audit test-language-runtime test-frontend-robustness test-complex-cases test-stutilsio compat-matrix quality-gate abi-interop all-tests test dev-test smoke-hola-mundo clean install uninstall install-menu

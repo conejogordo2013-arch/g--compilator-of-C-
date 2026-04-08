@@ -1,0 +1,18 @@
+import io;
+import system;
+
+int32 main() {
+    int32 a = 20;
+    int32 b = 22;
+    int32 total = a + b;
+
+    // imprime 42
+    println(total);
+
+    // imprime 2026
+    println(2026);
+
+    system_exit(0);
+    return 0;
+}
+

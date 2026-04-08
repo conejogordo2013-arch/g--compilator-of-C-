@@ -94,12 +94,178 @@ EOF
     return
   fi
 
+  if ! GEE_PATH="  $sdk_dir  " "$GEE_BIN" "$app_dir/import_env.cb" "$WORK_DIR/import_env_path.s" >/dev/null 2>&1; then
+    echo "[FAIL] import_env: failed to resolve module via whitespace-padded GEE_PATH"
+    fail=1
+    return
+  fi
+
   echo "[PASS] import_env"
+}
+
+test_import_local_header() {
+  local app_dir="$WORK_DIR/local_import"
+  mkdir -p "$app_dir"
+
+  cat >"$app_dir/localmod.h" <<'EOF'
+extern int32 puts(string);
+EOF
+
+  cat >"$app_dir/main.cb" <<'EOF'
+import localmod;
+int32 main() {
+    puts("local-import-ok");
+    return 0;
+}
+EOF
+
+  if ! "$GEE_BIN" "$app_dir/main.cb" "$WORK_DIR/local_import.s" >/dev/null 2>&1; then
+    echo "[FAIL] import_local_header: failed to resolve local <module>.h import"
+    fail=1
+    return
+  fi
+
+  echo "[PASS] import_local_header"
+}
+
+test_preprocessor_balance() {
+  local src="$WORK_DIR/pre_bad.cb"
+  cat >"$src" <<'EOF'
+int32 main() {
+#ifdef FEATURE_A
+    return 0;
+}
+EOF
+
+  local log="$WORK_DIR/pre_bad.log"
+  set +e
+  "$GEE_BIN" "$src" "$WORK_DIR/pre_bad.s" >"$log" 2>&1
+  local rc=$?
+  set -e
+
+  if [[ $rc -eq 0 ]]; then
+    echo "[FAIL] preprocessor_balance: expected failure for unterminated #ifdef"
+    fail=1
+    return
+  fi
+
+  if ! grep -q "unterminated preprocessor conditional" "$log"; then
+    echo "[FAIL] preprocessor_balance: missing unterminated-conditional diagnostic"
+    fail=1
+    return
+  fi
+
+  echo "[PASS] preprocessor_balance"
+}
+
+test_preprocessor_duplicate_else() {
+  local src="$WORK_DIR/pre_dup_else.cb"
+  cat >"$src" <<'EOF'
+int32 main() {
+#ifdef FEATURE_A
+    return 1;
+#else
+    return 0;
+#else
+    return 2;
+#endif
+}
+EOF
+
+  local log="$WORK_DIR/pre_dup_else.log"
+  set +e
+  "$GEE_BIN" "$src" "$WORK_DIR/pre_dup_else.s" >"$log" 2>&1
+  local rc=$?
+  set -e
+
+  if [[ $rc -eq 0 ]]; then
+    echo "[FAIL] preprocessor_duplicate_else: expected failure for duplicate #else"
+    fail=1
+    return
+  fi
+
+  if ! grep -q "duplicate #else" "$log"; then
+    echo "[FAIL] preprocessor_duplicate_else: missing duplicate-else diagnostic"
+    fail=1
+    return
+  fi
+
+  echo "[PASS] preprocessor_duplicate_else"
+}
+
+test_invalid_hex_literal() {
+  local src="$WORK_DIR/bad_hex.cb"
+  cat >"$src" <<'EOF'
+int32 main() {
+    int32 x = 0x;
+    return x;
+}
+EOF
+
+  local log="$WORK_DIR/bad_hex.log"
+  set +e
+  "$GEE_BIN" "$src" "$WORK_DIR/bad_hex.s" >"$log" 2>&1
+  local rc=$?
+  set -e
+
+  if [[ $rc -eq 0 ]]; then
+    echo "[FAIL] invalid_hex_literal: expected failure for 0x without digits"
+    fail=1
+    return
+  fi
+
+  if ! grep -q "invalid hexadecimal literal" "$log"; then
+    echo "[FAIL] invalid_hex_literal: missing invalid-hex diagnostic"
+    fail=1
+    return
+  fi
+
+  echo "[PASS] invalid_hex_literal"
+}
+
+test_preprocessor_elif_not_supported() {
+  local src="$WORK_DIR/pre_elif.cb"
+  cat >"$src" <<'EOF'
+int32 main() {
+#ifdef FEATURE_A
+    return 1;
+#elif FEATURE_B
+    return 2;
+#else
+    return 0;
+#endif
+}
+EOF
+
+  local log="$WORK_DIR/pre_elif.log"
+  set +e
+  "$GEE_BIN" "$src" "$WORK_DIR/pre_elif.s" >"$log" 2>&1
+  local rc=$?
+  set -e
+
+  if [[ $rc -eq 0 ]]; then
+    echo "[FAIL] preprocessor_elif_not_supported: expected failure for #elif"
+    fail=1
+    return
+  fi
+
+  if ! grep -q "#elif is not supported yet" "$log"; then
+    echo "[FAIL] preprocessor_elif_not_supported: missing #elif diagnostic"
+    fail=1
+    return
+  fi
+
+  echo "[PASS] preprocessor_elif_not_supported"
 }
 
 test_parse_recovery
 test_conditional_else
 test_import_roots_env
+test_import_local_header
+test_preprocessor_balance
+test_preprocessor_duplicate_else
+test_invalid_hex_literal
+test_preprocessor_elif_not_supported
 
 if [[ $fail -ne 0 ]]; then
   exit 1

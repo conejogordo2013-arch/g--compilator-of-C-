@@ -1,0 +1,14 @@
+import stutilsio;
+import io;
+
+int32 main() {
+    struct st_union_scalar u;
+    st_union_write_s64(&u, 1234);
+
+    int64 vp = st_void_from_i64(st_union_read_s64(&u));
+    int64 back = st_i64_from_void(vp);
+
+    println(back);      // esperado: 1234
+    println(back + 66); // esperado: 1300
+    return 0;
+}
