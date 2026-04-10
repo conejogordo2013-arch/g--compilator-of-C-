@@ -1,0 +1,45 @@
+// libcbang/base.cb - utilidades base para C!
+
+import io;
+
+extern void println(int64);
+extern void print_bool(int32);
+extern void print_hex(int64);
+
+void cb_print(int64 value) {
+    println(value);
+}
+
+void cb_println(int64 value) {
+    println(value);
+}
+
+void cb_print_bool(int32 value) {
+    print_bool(value);
+}
+
+void cb_print_hex(int64 value) {
+    print_hex(value);
+}
+
+int32 cb_eq_i32(int32 a, int32 b) {
+    if (a < b) return 0;
+    if (a > b) return 0;
+    return 1;
+}
+
+int32 cb_min_i32(int32 a, int32 b) {
+    if (a < b) return a;
+    return b;
+}
+
+int32 cb_max_i32(int32 a, int32 b) {
+    if (a > b) return a;
+    return b;
+}
+
+int32 cb_clamp_i32(int32 x, int32 lo, int32 hi) {
+    if (x < lo) return lo;
+    if (x > hi) return hi;
+    return x;
+}

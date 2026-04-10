@@ -1,0 +1,67 @@
+// libcbang/collections.cb - array dinámico simple.
+
+import memory;
+extern int64 alloc(int64);
+extern void free(int64);
+
+struct CbArray {
+    int64 data;
+    int32 count;
+    int32 capacity;
+};
+
+void cb_array_init(struct CbArray* arr) {
+    arr->data = 0;
+    arr->count = 0;
+    arr->capacity = 0;
+}
+
+void cb_array_free(struct CbArray* arr) {
+    if (arr->data != 0) free(arr->data);
+    arr->data = 0;
+    arr->count = 0;
+    arr->capacity = 0;
+}
+
+int32 cb_array_size(struct CbArray* arr) {
+    return arr->count;
+}
+
+int32 cb_array_reserve(struct CbArray* arr, int32 new_cap) {
+    if (new_cap <= arr->capacity) return 1;
+
+    int64 new_data = alloc(new_cap * 8);
+    if (new_data == 0) return 0;
+
+    int64* dst = new_data;
+    int64* src = arr->data;
+    int32 i = 0;
+    while (i < arr->count) {
+        *(dst + i) = *(src + i);
+        i = i + 1;
+    }
+
+    if (arr->data != 0) free(arr->data);
+    arr->data = new_data;
+    arr->capacity = new_cap;
+    return 1;
+}
+
+int32 cb_array_push(struct CbArray* arr, int64 value) {
+    if (arr->count == arr->capacity) {
+        int32 next = 8;
+        if (arr->capacity != 0) next = arr->capacity * 2;
+        if (cb_array_reserve(arr, next) == 0) return 0;
+    }
+
+    int64* p = arr->data;
+    *(p + arr->count) = value;
+    arr->count = arr->count + 1;
+    return 1;
+}
+
+int64 cb_array_get(struct CbArray* arr, int32 index) {
+    if (index < 0 || index >= arr->count) return 0;
+    int64* p = arr->data;
+    return *(p + index);
+}

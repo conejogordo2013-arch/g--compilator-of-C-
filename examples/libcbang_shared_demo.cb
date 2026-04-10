@@ -1,0 +1,30 @@
+import system;
+
+struct CbObject { int32 type_id; int32 parent_type_id; int32 alive; int32 flags; };
+struct CbArray { int64 data; int32 count; int32 capacity; };
+
+extern int32 cb_eq_i32(int32, int32);
+extern void cb_object_init(struct CbObject*, int32, int32);
+extern void cb_object_kill(struct CbObject*);
+extern void cb_array_init(struct CbArray*);
+extern int32 cb_array_size(struct CbArray*);
+extern void cb_array_free(struct CbArray*);
+
+int32 main() {
+    struct CbObject obj;
+    struct CbArray arr;
+
+    cb_object_init(&obj, 7, 1);
+    cb_array_init(&arr);
+
+    if (cb_eq_i32(cb_array_size(&arr), 0) == 0) {
+        cb_array_free(&arr);
+        system_exit(1);
+        return 1;
+    }
+
+    cb_object_kill(&obj);
+    cb_array_free(&arr);
+    system_exit(0);
+    return 0;
+}

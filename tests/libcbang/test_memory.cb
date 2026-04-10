@@ -1,0 +1,18 @@
+import system;
+extern int64 cb_alloc_bytes(int64);
+extern void cb_free_ptr(int64);
+extern void cb_mem_copy_i64(int64*, int64*, int32);
+int32 main() {
+    int64 a = cb_alloc_bytes(8);
+    int64 b = cb_alloc_bytes(8);
+    if (a == 0 || b == 0) { system_exit(1); return 1; }
+    int64* pa = a;
+    int64* pb = b;
+    *(pa + 0) = 11;
+    cb_mem_copy_i64(pb, pa, 1);
+    if (*(pb + 0) != 11) { system_exit(2); return 2; }
+    cb_free_ptr(a);
+    cb_free_ptr(b);
+    system_exit(0);
+    return 0;
+}

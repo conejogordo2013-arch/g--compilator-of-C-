@@ -1,0 +1,13 @@
+import system;
+struct CbObject { int32 type_id; int32 parent_type_id; int32 alive; int32 flags; };
+extern void cb_object_init(struct CbObject*, int32, int32);
+extern void cb_object_kill(struct CbObject*);
+extern int32 cb_object_instanceof(struct CbObject*, int32);
+int32 main() {
+    struct CbObject obj;
+    cb_object_init(&obj, 99, 10);
+    cb_object_instanceof(&obj, 10);
+    cb_object_kill(&obj);
+    system_exit(0);
+    return 0;
+}
