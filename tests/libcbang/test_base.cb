@@ -1,0 +1,16 @@
+import system;
+
+extern int32 cb_eq_i32(int32, int32);
+extern int32 cb_min_i32(int32, int32);
+extern int32 cb_max_i32(int32, int32);
+extern int32 cb_clamp_i32(int32, int32, int32);
+
+int32 main() {
+    if (!cb_eq_i32(7, 7)) { system_exit(1); return 1; }
+    if (cb_eq_i32(7, 8)) { system_exit(2); return 2; }
+    if (cb_min_i32(2, 5) != 2) { system_exit(3); return 3; }
+    if (cb_max_i32(2, 5) != 5) { system_exit(4); return 4; }
+    if (cb_clamp_i32(99, 0, 10) != 10) { system_exit(5); return 5; }
+    system_exit(0);
+    return 0;
+}

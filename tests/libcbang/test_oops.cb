@@ -1,0 +1,16 @@
+import system;
+struct CbObject { int32 type_id; int32 parent_type_id; int32 alive; int32 flags; };
+struct CbRect { int32 type_id; int32 parent_type_id; int32 alive; int32 flags; int32 x; int32 y; int32 color; int32 w; int32 h; };
+extern void cb_rect_init(struct CbRect*, int32, int32, int32);
+extern int32 cb_oops_call(struct CbObject*, int32, int32, int32);
+extern int32 cb_m_area();
+extern int32 cb_m_scale();
+int32 main() {
+    struct CbRect r;
+    cb_rect_init(&r, 2, 10, 4);
+    cb_oops_call(&r, cb_m_area(), 0, 0);
+    cb_oops_call(&r, cb_m_scale(), 3, 0);
+    cb_oops_call(&r, cb_m_area(), 0, 0);
+    system_exit(0);
+    return 0;
+}

@@ -1,0 +1,33 @@
+// libcbang/memory.cb - wrappers simples de memoria y datos.
+
+import memory;
+extern int64 alloc(int64);
+extern void free(int64);
+
+int64 cb_alloc_bytes(int64 bytes) {
+    if (bytes <= 0) return 0;
+    return alloc(bytes);
+}
+
+void cb_free_ptr(int64 ptr) {
+    if (ptr == 0) return;
+    free(ptr);
+}
+
+void cb_mem_set_i64(int64* data, int32 count, int64 value) {
+    if (data == 0 || count <= 0) return;
+    int32 i = 0;
+    while (i < count) {
+        *(data + i) = value;
+        i = i + 1;
+    }
+}
+
+void cb_mem_copy_i64(int64* dst, int64* src, int32 count) {
+    if (dst == 0 || src == 0 || count <= 0) return;
+    int32 i = 0;
+    while (i < count) {
+        *(dst + i) = *(src + i);
+        i = i + 1;
+    }
+}

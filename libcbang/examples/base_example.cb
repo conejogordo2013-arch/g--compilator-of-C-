@@ -1,0 +1,23 @@
+import system;
+
+extern void cb_print(int64);
+extern void cb_println(int64);
+extern void cb_print_bool(int32);
+extern void cb_print_hex(int64);
+extern int32 cb_eq_i32(int32, int32);
+extern int32 cb_clamp_i32(int32, int32, int32);
+
+int32 main() {
+    cb_print(10);
+    cb_println(20);
+    cb_print_bool(cb_eq_i32(4, 4));
+    cb_print_hex(255);
+
+    if (cb_clamp_i32(9, 0, 5) != 5) {
+        system_exit(1);
+        return 1;
+    }
+
+    system_exit(0);
+    return 0;
+}

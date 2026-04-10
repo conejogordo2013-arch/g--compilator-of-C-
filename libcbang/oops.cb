@@ -1,0 +1,96 @@
+// libcbang/oops.cb - dispatch dinámico simple sobre CbObject.
+
+struct CbObject {
+    int32 type_id;
+    int32 parent_type_id;
+    int32 alive;
+    int32 flags;
+};
+
+struct CbShape {
+    int32 type_id;
+    int32 parent_type_id;
+    int32 alive;
+    int32 flags;
+    int32 x;
+    int32 y;
+    int32 color;
+};
+
+struct CbRect {
+    int32 type_id;
+    int32 parent_type_id;
+    int32 alive;
+    int32 flags;
+    int32 x;
+    int32 y;
+    int32 color;
+    int32 w;
+    int32 h;
+};
+
+extern void cb_object_init(struct CbObject*, int32, int32);
+extern int32 cb_object_is_alive(struct CbObject*);
+extern int32 cb_object_instanceof(struct CbObject*, int32);
+
+int32 cb_type_object() { return 1; }
+int32 cb_type_shape() { return 10; }
+int32 cb_type_rect() { return 11; }
+
+int32 cb_m_area() { return 100; }
+int32 cb_m_move() { return 101; }
+int32 cb_m_scale() { return 102; }
+int32 cb_m_get_x() { return 103; }
+int32 cb_m_get_y() { return 104; }
+
+void cb_shape_init(struct CbShape* shape, int32 color) {
+    cb_object_init(shape, cb_type_shape(), cb_type_object());
+    shape->x = 0;
+    shape->y = 0;
+    shape->color = color;
+}
+
+void cb_rect_init(struct CbRect* rect, int32 w, int32 h, int32 color) {
+    cb_object_init(rect, cb_type_rect(), cb_type_shape());
+    rect->x = 0;
+    rect->y = 0;
+    rect->color = color;
+    if (w < 0) w = 0;
+    if (h < 0) h = 0;
+    rect->w = w;
+    rect->h = h;
+}
+
+int32 cb_rect_area(struct CbRect* rect) {
+    return rect->w * rect->h;
+}
+
+void cb_shape_move(struct CbShape* shape, int32 dx, int32 dy) {
+    shape->x = shape->x + dx;
+    shape->y = shape->y + dy;
+}
+
+void cb_rect_scale(struct CbRect* rect, int32 factor) {
+    if (factor <= 0) return;
+    rect->w = rect->w * factor;
+    rect->h = rect->h * factor;
+}
+
+int32 cb_oops_call(struct CbObject* obj, int32 method_id, int32 a, int32 b) {
+    if (cb_object_is_alive(obj) == 0) return 0;
+
+    if (cb_object_instanceof(obj, cb_type_shape())) {
+        struct CbShape* shape = obj;
+        if (method_id == cb_m_move()) { cb_shape_move(shape, a, b); return 1; }
+        if (method_id == cb_m_get_x()) return shape->x;
+        if (method_id == cb_m_get_y()) return shape->y;
+    }
+
+    if (obj->type_id == cb_type_rect()) {
+        struct CbRect* rect = obj;
+        if (method_id == cb_m_area()) return cb_rect_area(rect);
+        if (method_id == cb_m_scale()) { cb_rect_scale(rect, a); return 1; }
+    }
+
+    return 0;
+}

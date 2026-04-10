@@ -1,0 +1,42 @@
+// libcbangabi/abi.cb - ABI público estable de C!.
+
+int32 cbabi_version_major() { return 1; }
+int32 cbabi_version_minor() { return 0; }
+int32 cbabi_version_patch() { return 0; }
+
+// init mínimo de runtime ABI.
+void cbabi_runtime_init() {
+    return;
+}
+
+int32 cbabi_bool_true() { return 1; }
+int32 cbabi_bool_false() { return 0; }
+
+int32 cbabi_add_i32(int32 a, int32 b) { return a + b; }
+int64 cbabi_add_i64(int64 a, int64 b) { return a + b; }
+int64 cbabi_echo_ptr(int64 p) { return p; }
+
+// Probe para verificar paso de argumentos (registros/stack) por ABI.
+int32 cbabi_callconv_probe6(int32 a, int32 b, int32 c, int32 d, int32 e, int32 f) {
+    return a + (b * 2) + (c * 3) + (d * 4) + (e * 5) + (f * 6);
+}
+
+struct CbAbiHeader {
+    int32 kind;
+    int32 flags;
+    int64 payload;
+};
+
+void cbabi_header_init(struct CbAbiHeader* h, int32 kind, int32 flags, int64 payload) {
+    h->kind = kind;
+    h->flags = flags;
+    h->payload = payload;
+}
+
+int32 cbabi_header_get_kind(struct CbAbiHeader* h) { return h->kind; }
+int32 cbabi_header_get_flags(struct CbAbiHeader* h) { return h->flags; }
+int64 cbabi_header_get_payload(struct CbAbiHeader* h) { return h->payload; }
+
+void cbabi_header_set_payload(struct CbAbiHeader* h, int64 payload) {
+    h->payload = payload;
+}

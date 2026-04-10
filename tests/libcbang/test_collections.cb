@@ -1,0 +1,13 @@
+import system;
+struct CbArray { int64 data; int32 count; int32 capacity; };
+extern void cb_array_init(struct CbArray*);
+extern int32 cb_array_size(struct CbArray*);
+extern void cb_array_free(struct CbArray*);
+int32 main() {
+    struct CbArray arr;
+    cb_array_init(&arr);
+    cb_array_size(&arr);
+    cb_array_free(&arr);
+    system_exit(0);
+    return 0;
+}
