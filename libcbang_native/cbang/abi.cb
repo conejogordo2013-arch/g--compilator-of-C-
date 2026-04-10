@@ -1,0 +1,23 @@
+struct cb_abi_header {
+    int32 abi_version;
+    int32 flags;
+    int64 payload;
+};
+
+int32 cb_abi_version() {
+    return 65536;
+}
+
+void cb_abi_header_init(struct cb_abi_header* h, int64 payload) {
+    if (h == 0) return;
+    h->abi_version = cb_abi_version();
+    h->flags = 0;
+    h->payload = payload;
+}
+
+int32 cb_abi_header_valid(struct cb_abi_header* h) {
+    if (h == 0) return 0;
+    if (h->abi_version < cb_abi_version()) return 0;
+    if (h->abi_version > cb_abi_version()) return 0;
+    return 1;
+}

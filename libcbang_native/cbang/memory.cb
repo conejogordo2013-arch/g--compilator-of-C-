@@ -1,0 +1,51 @@
+
+extern int64 alloc(int64);
+extern void free(int64);
+
+struct cb_arena {
+    int64 data;
+    int32 size;
+    int32 used;
+};
+
+int64 cb_mem_alloc(int32 size) {
+    if (size <= 0) return 0;
+    return alloc(size);
+}
+
+void cb_mem_free(int64 ptr) {
+    if (ptr == 0) return;
+    free(ptr);
+}
+
+int32 cb_arena_init(struct cb_arena* arena, int32 size) {
+    if (arena == 0 || size <= 0) return 0;
+    arena->data = alloc(size);
+    if (arena->data == 0) return 0;
+    arena->size = size;
+    arena->used = 0;
+    return 1;
+}
+
+void cb_arena_reset(struct cb_arena* arena) {
+    if (arena == 0) return;
+    arena->used = 0;
+}
+
+void cb_arena_destroy(struct cb_arena* arena) {
+    if (arena == 0) return;
+    if (arena->data != 0) free(arena->data);
+    arena->data = 0;
+    arena->size = 0;
+    arena->used = 0;
+}
+
+int64 cb_arena_alloc(struct cb_arena* arena, int32 size) {
+    int64 base;
+    if (arena == 0 || size <= 0) return 0;
+    if (arena->data == 0) return 0;
+    if (arena->used + size > arena->size) return 0;
+    base = arena->data + arena->used;
+    arena->used = arena->used + size;
+    return base;
+}

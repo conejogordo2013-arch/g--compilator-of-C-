@@ -1,42 +1,32 @@
 # libcbang_native
 
-Implementación base en C modular para C!.
+Implementación en **C! portable** para C!.
 
-## Módulos
-- `core`: tipos/macros/utilidades básicas.
-- `memory`: wrappers `malloc/free` + arena allocator.
-- `string`: string dinámico (set/append/slice/compare).
-- `io`: print/read/write de archivos.
-- `containers`: vector dinámico, lista doble, hashmap básico.
-- `runtime`: init/shutdown/panic runtime.
-- `abi`: ABI público estable para interoperabilidad.
+## Estado
+- Código fuente en `libcbang_native/cbang/*.cb`.
+- Build compartido en x86-64/arm64 vía `gee + as + ld`.
 
-## Build
+## Build (x86-64)
 
 ```bash
 cd libcbang_native
 make all
 ```
 
-Genera:
-- librerías por módulo (`build/lib/libcbang_*.a`)
-- agregadas (`build/lib/libcbang.a`, `build/lib/libcbang.so`)
-- ejemplos (`build/examples/minimal_example`, `build/examples/full_example`)
+Salida esperada:
+- `build/lib/libcbang.so`
 
-## Build minimal
+## Build directo por script
 
 ```bash
-make minimal
+bash scripts/build-libcbang-native-shared.sh x86-64 libcbang.so
+bash scripts/build-libcbang-native-shared.sh arm-64 libcbang_arm64.so
 ```
 
-Solo compila `core + memory`.
+## Test
 
-## Optimización y DCE
+```bash
+bash libcbang_native/tests/test_build_and_run.sh
+```
 
-El `Makefile` usa:
-- `-O2`
-- `-ffunction-sections`
-- `-fdata-sections`
-- `-Wl,--gc-sections`
-
-para reducir tamaño y permitir eliminar código no usado.
+Valida que se genere `build/lib/libcbang.so` en el entorno actual.

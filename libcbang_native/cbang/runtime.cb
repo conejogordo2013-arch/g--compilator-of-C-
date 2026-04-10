@@ -1,0 +1,18 @@
+struct cb_runtime {
+    int32 argc;
+    int64 argv;
+    int32 initialized;
+};
+
+int32 cb_runtime_init(struct cb_runtime* rt, int32 argc, int64 argv) {
+    if (rt == 0) return 0;
+    rt->argc = argc;
+    rt->argv = argv;
+    rt->initialized = 1;
+    return 1;
+}
+
+void cb_runtime_shutdown(struct cb_runtime* rt) {
+    if (rt == 0) return;
+    rt->initialized = 0;
+}

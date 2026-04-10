@@ -1,0 +1,32 @@
+// libcbang_native/cbang/core.cb - implementación portable en C!.
+
+int32 cb_false() {
+    return 0;
+}
+
+int32 cb_true() {
+    return 1;
+}
+
+int32 cb_version_major() {
+    return 1;
+}
+
+int32 cb_version_minor() {
+    return 0;
+}
+
+int32 cb_version_patch() {
+    return 0;
+}
+
+int32 cb_clamp_i32(int32 value, int32 lo, int32 hi) {
+    if (lo > hi) {
+        int32 t = lo;
+        lo = hi;
+        hi = t;
+    }
+    if (value < lo) return lo;
+    if (value > hi) return hi;
+    return value;
+}

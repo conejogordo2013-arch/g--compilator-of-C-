@@ -1,0 +1,11 @@
+
+extern void print(int64);
+extern void println(int64);
+
+void cb_io_print_i64(int64 value) {
+    print(value);
+}
+
+void cb_io_println_i64(int64 value) {
+    println(value);
+}

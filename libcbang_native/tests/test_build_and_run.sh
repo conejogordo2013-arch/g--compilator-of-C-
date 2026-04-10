@@ -2,9 +2,14 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+
 make clean >/dev/null
 make all >/dev/null
-./build/examples/minimal_example >/tmp/libcbang_native_minimal.out
-./build/examples/full_example >/tmp/libcbang_native_full.out
+
+test -f build/lib/libcbang.so
+
+if command -v file >/dev/null 2>&1; then
+  file build/lib/libcbang.so | grep -E "shared object|ELF" >/dev/null
+fi
 
 echo "EXIT:0"

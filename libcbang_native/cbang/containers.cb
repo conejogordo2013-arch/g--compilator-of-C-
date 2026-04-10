@@ -1,0 +1,52 @@
+extern int64 alloc(int64);
+extern void free(int64);
+
+struct cb_vec_i64 {
+    int64 data;
+    int32 len;
+    int32 cap;
+};
+
+void cb_vec_i64_init(struct cb_vec_i64* v) {
+    v->data = 0;
+    v->len = 0;
+    v->cap = 0;
+}
+
+void cb_vec_i64_free(struct cb_vec_i64* v) {
+    if (v->data != 0) free(v->data);
+    v->data = 0;
+    v->len = 0;
+    v->cap = 0;
+}
+
+int32 cb_vec_i64_push(struct cb_vec_i64* v, int64 value) {
+    int32 next;
+    int64 new_data;
+    int64* dst;
+    int64* src;
+    int32 i;
+
+    if (v->len == v->cap) {
+        next = 8;
+        if (v->cap != 0) next = v->cap * 2;
+        new_data = alloc(next * 8);
+        if (new_data == 0) return 0;
+
+        dst = new_data;
+        src = v->data;
+        i = 0;
+        while (i < v->len) {
+            *(dst + i) = *(src + i);
+            i = i + 1;
+        }
+        if (v->data != 0) free(v->data);
+        v->data = new_data;
+        v->cap = next;
+    }
+
+    dst = v->data;
+    *(dst + v->len) = value;
+    v->len = v->len + 1;
+    return 1;
+}

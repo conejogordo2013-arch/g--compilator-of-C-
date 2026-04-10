@@ -1,0 +1,19 @@
+// string util mínimo en C! para buffers char-like.
+
+struct cb_string {
+    int64 data;
+    int32 len;
+    int32 cap;
+};
+
+void cb_string_init(struct cb_string* s) {
+    s->data = 0;
+    s->len = 0;
+    s->cap = 0;
+}
+
+int32 cb_string_empty(struct cb_string* s) {
+    if (s == 0) return 1;
+    if (s->len < 1) return 1;
+    return 0;
+}
