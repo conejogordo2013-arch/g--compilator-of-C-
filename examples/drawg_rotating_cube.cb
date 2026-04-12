@@ -1,0 +1,113 @@
+struct DrawgCanvas {
+    int32 width;
+    int32 height;
+    int64 pixels;
+    int32 alive;
+};
+
+struct Vec3 {
+    int32 x;
+    int32 y;
+    int32 z;
+};
+
+struct Vec2 {
+    int32 x;
+    int32 y;
+};
+
+extern int64 drawg_rgb(int32, int32, int32);
+extern int32 drawg_open(struct DrawgCanvas*, int32, int32, string);
+extern void drawg_close(struct DrawgCanvas*);
+extern void drawg_clear(struct DrawgCanvas*, int64);
+extern void drawg_line(struct DrawgCanvas*, int32, int32, int32, int32, int64);
+extern int32 drawg_should_close();
+extern void drawg_present(struct DrawgCanvas*);
+extern void drawg_sleep_ms(int32);
+
+void cube_base(int32 idx, struct Vec3* out) {
+    if (idx == 0) { out->x = -120; out->y = -120; out->z = -120; }
+    else if (idx == 1) { out->x = 120; out->y = -120; out->z = -120; }
+    else if (idx == 2) { out->x = 120; out->y = 120; out->z = -120; }
+    else if (idx == 3) { out->x = -120; out->y = 120; out->z = -120; }
+    else if (idx == 4) { out->x = -120; out->y = -120; out->z = 120; }
+    else if (idx == 5) { out->x = 120; out->y = -120; out->z = 120; }
+    else if (idx == 6) { out->x = 120; out->y = 120; out->z = 120; }
+    else { out->x = -120; out->y = 120; out->z = 120; }
+}
+
+void rotate_step(struct Vec3* v) {
+    int32 c = 1020;
+    int32 s = 89;
+
+    int32 ox = v->x;
+    int32 oy = v->y;
+    int32 oz = v->z;
+
+    v->x = ((ox * c) - (oz * s)) / 1024;
+    v->z = ((ox * s) + (oz * c)) / 1024;
+
+    oz = v->z;
+    v->y = ((oy * c) - (oz * s)) / 1024;
+    v->z = ((oy * s) + (oz * c)) / 1024;
+}
+
+void cube_rotated(int32 idx, int32 frame, struct Vec3* out) {
+    cube_base(idx, out);
+    int32 i = 0;
+    while (i < frame) {
+        rotate_step(out);
+        i = i + 1;
+    }
+}
+
+void project(struct Vec3* v, struct Vec2* out) {
+    int32 depth = v->z + 520;
+    int32 focal = 260;
+    if (depth < 80) depth = 80;
+    out->x = 400 + ((v->x * focal) / depth);
+    out->y = 300 + ((v->y * focal) / depth);
+}
+
+void edge(struct DrawgCanvas* c, struct Vec2* a, struct Vec2* b, int64 color) {
+    drawg_line(c, a->x, a->y, b->x, b->y, color);
+}
+
+int32 main() {
+    struct DrawgCanvas cv;
+    if (drawg_open(&cv, 800, 600, "DrawG Cubo 3D") == 0) {
+        return 1;
+    }
+
+    int64 bg = drawg_rgb(15, 80, 190);
+    int64 fg = drawg_rgb(30, 240, 80);
+
+    int32 frame = 0;
+    while (drawg_should_close() == 0) {
+        struct Vec3 v0; struct Vec3 v1; struct Vec3 v2; struct Vec3 v3;
+        struct Vec3 v4; struct Vec3 v5; struct Vec3 v6; struct Vec3 v7;
+        struct Vec2 p0; struct Vec2 p1; struct Vec2 p2; struct Vec2 p3;
+        struct Vec2 p4; struct Vec2 p5; struct Vec2 p6; struct Vec2 p7;
+
+        cube_rotated(0, frame, &v0); cube_rotated(1, frame, &v1);
+        cube_rotated(2, frame, &v2); cube_rotated(3, frame, &v3);
+        cube_rotated(4, frame, &v4); cube_rotated(5, frame, &v5);
+        cube_rotated(6, frame, &v6); cube_rotated(7, frame, &v7);
+
+        project(&v0, &p0); project(&v1, &p1); project(&v2, &p2); project(&v3, &p3);
+        project(&v4, &p4); project(&v5, &p5); project(&v6, &p6); project(&v7, &p7);
+
+        drawg_clear(&cv, bg);
+        edge(&cv, &p0, &p1, fg); edge(&cv, &p1, &p2, fg); edge(&cv, &p2, &p3, fg); edge(&cv, &p3, &p0, fg);
+        edge(&cv, &p4, &p5, fg); edge(&cv, &p5, &p6, fg); edge(&cv, &p6, &p7, fg); edge(&cv, &p7, &p4, fg);
+        edge(&cv, &p0, &p4, fg); edge(&cv, &p1, &p5, fg); edge(&cv, &p2, &p6, fg); edge(&cv, &p3, &p7, fg);
+        drawg_present(&cv);
+        drawg_sleep_ms(16);
+
+        frame = frame + 1;
+        if (frame > 5000) frame = 0;
+    }
+
+    drawg_close(&cv);
+    return 0;
+}

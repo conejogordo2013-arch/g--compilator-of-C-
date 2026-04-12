@@ -1,0 +1,146 @@
+extern int64 fopen(string, string);
+extern int32 fputs(string, int64);
+extern int32 fclose(int64);
+extern int32 puts(string);
+
+struct Vec3 {
+    int32 x;
+    int32 y;
+    int32 z;
+};
+
+struct Vec2 {
+    int32 x;
+    int32 y;
+};
+
+int32 abs_i32(int32 x) {
+    if (x < 0) return -x;
+    return x;
+}
+
+void cube_vertex_base(int32 idx, struct Vec3* out) {
+    if (idx == 0) { out->x = -100; out->y = -100; out->z = -100; }
+    else if (idx == 1) { out->x = 100; out->y = -100; out->z = -100; }
+    else if (idx == 2) { out->x = 100; out->y = 100; out->z = -100; }
+    else if (idx == 3) { out->x = -100; out->y = 100; out->z = -100; }
+    else if (idx == 4) { out->x = -100; out->y = -100; out->z = 100; }
+    else if (idx == 5) { out->x = 100; out->y = -100; out->z = 100; }
+    else if (idx == 6) { out->x = 100; out->y = 100; out->z = 100; }
+    else { out->x = -100; out->y = 100; out->z = 100; }
+}
+
+void rotate_step(struct Vec3* v) {
+    int32 c = 1020;
+    int32 s = 89;
+    int32 ox = v->x;
+    int32 oy = v->y;
+    int32 oz = v->z;
+    v->x = ((ox * c) - (oz * s)) / 1024;
+    v->z = ((ox * s) + (oz * c)) / 1024;
+    oz = v->z;
+    v->y = ((oy * c) - (oz * s)) / 1024;
+    v->z = ((oy * s) + (oz * c)) / 1024;
+}
+
+void cube_vertex_rotated(int32 idx, int32 frame, struct Vec3* out) {
+    cube_vertex_base(idx, out);
+    int32 i = 0;
+    while (i < frame) {
+        rotate_step(out);
+        i = i + 1;
+    }
+}
+
+void project(struct Vec3* v, struct Vec2* p) {
+    int32 focal = 220;
+    int32 depth = v->z + 500;
+    if (depth < 60) depth = 60;
+    p->x = 32 + ((v->x * focal) / depth);
+    p->y = 32 + ((v->y * focal) / depth);
+}
+
+int32 pixel_on_segment(int32 px, int32 py, struct Vec2* a, struct Vec2* b) {
+    int32 dx = b->x - a->x;
+    int32 dy = b->y - a->y;
+    int32 nx = px - a->x;
+    int32 ny = py - a->y;
+    int32 cross = abs_i32((nx * dy) - (ny * dx));
+    int32 len = abs_i32(dx) + abs_i32(dy) + 1;
+    if (cross > (len * 2)) return 0;
+    int32 dot = (nx * dx) + (ny * dy);
+    if (dot < 0) return 0;
+    if (dot > ((dx * dx) + (dy * dy))) return 0;
+    return 1;
+}
+
+int64 open_frame_file(int32 frame_idx) {
+    if (frame_idx == 0) return fopen("cube_000.ppm", "w");
+    if (frame_idx == 1) return fopen("cube_001.ppm", "w");
+    if (frame_idx == 2) return fopen("cube_002.ppm", "w");
+    if (frame_idx == 3) return fopen("cube_003.ppm", "w");
+    if (frame_idx == 4) return fopen("cube_004.ppm", "w");
+    return fopen("cube_005.ppm", "w");
+}
+
+int32 write_frame(int32 frame_idx) {
+    int64 f = open_frame_file(frame_idx);
+    if (f == 0) return 0;
+
+    struct Vec3 v0; struct Vec3 v1; struct Vec3 v2; struct Vec3 v3;
+    struct Vec3 v4; struct Vec3 v5; struct Vec3 v6; struct Vec3 v7;
+    struct Vec2 p0; struct Vec2 p1; struct Vec2 p2; struct Vec2 p3;
+    struct Vec2 p4; struct Vec2 p5; struct Vec2 p6; struct Vec2 p7;
+
+    cube_vertex_rotated(0, frame_idx, &v0); cube_vertex_rotated(1, frame_idx, &v1);
+    cube_vertex_rotated(2, frame_idx, &v2); cube_vertex_rotated(3, frame_idx, &v3);
+    cube_vertex_rotated(4, frame_idx, &v4); cube_vertex_rotated(5, frame_idx, &v5);
+    cube_vertex_rotated(6, frame_idx, &v6); cube_vertex_rotated(7, frame_idx, &v7);
+
+    project(&v0, &p0); project(&v1, &p1); project(&v2, &p2); project(&v3, &p3);
+    project(&v4, &p4); project(&v5, &p5); project(&v6, &p6); project(&v7, &p7);
+
+    fputs("P3\n64 64\n255\n", f);
+
+    int32 py = 0;
+    while (py < 64) {
+        int32 px = 0;
+        while (px < 64) {
+            int32 hit = 0;
+            if (pixel_on_segment(px, py, &p0, &p1)) hit = 1;
+            if (pixel_on_segment(px, py, &p1, &p2)) hit = 1;
+            if (pixel_on_segment(px, py, &p2, &p3)) hit = 1;
+            if (pixel_on_segment(px, py, &p3, &p0)) hit = 1;
+            if (pixel_on_segment(px, py, &p4, &p5)) hit = 1;
+            if (pixel_on_segment(px, py, &p5, &p6)) hit = 1;
+            if (pixel_on_segment(px, py, &p6, &p7)) hit = 1;
+            if (pixel_on_segment(px, py, &p7, &p4)) hit = 1;
+            if (pixel_on_segment(px, py, &p0, &p4)) hit = 1;
+            if (pixel_on_segment(px, py, &p1, &p5)) hit = 1;
+            if (pixel_on_segment(px, py, &p2, &p6)) hit = 1;
+            if (pixel_on_segment(px, py, &p3, &p7)) hit = 1;
+
+            if (hit == 1) fputs("245 245 245 ", f);
+            else fputs("15 80 190 ", f);
+            px = px + 1;
+        }
+        fputs("\n", f);
+        py = py + 1;
+    }
+
+    fclose(f);
+    return 1;
+}
+
+int32 main() {
+    int32 i = 0;
+    while (i < 6) {
+        if (write_frame(i) == 0) {
+            puts("Error escribiendo frame PPM");
+            return 1;
+        }
+        i = i + 1;
+    }
+    puts("Listo: generados cube_000.ppm ... cube_005.ppm");
+    return 0;
+}

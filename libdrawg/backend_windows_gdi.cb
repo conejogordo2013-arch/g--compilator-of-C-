@@ -1,0 +1,142 @@
+// Backend Windows GDI (C! puro) para drawg.
+
+int64 drawg_win_hwnd = 0;
+int64 drawg_win_hdc = 0;
+int32 drawg_win_close = 0;
+
+struct BITMAPINFO {
+    int32 biSize;
+    int32 biWidth;
+    int32 biHeight;
+    int32 biPlanes;
+    int32 biBitCount;
+    int32 biCompression;
+    int32 biSizeImage;
+    int32 biXPelsPerMeter;
+    int32 biYPelsPerMeter;
+    int32 biClrUsed;
+    int32 biClrImportant;
+    int32 bmiColors;
+};
+
+struct MSG {
+    int64 hwnd;
+    int32 message;
+    int64 wParam;
+    int64 lParam;
+    int32 time;
+    int32 pt_x;
+    int32 pt_y;
+};
+
+struct BITMAPINFO drawg_bmi;
+
+extern int64 CreateWindowExA(int64, string, string, int64, int32, int32, int32, int32, int64, int64, int64, int64);
+extern int32 ShowWindow(int64, int32);
+extern int32 UpdateWindow(int64);
+extern int64 GetDC(int64);
+extern int32 ReleaseDC(int64, int64);
+extern int32 DestroyWindow(int64);
+extern int32 IsWindow(int64);
+extern int32 PeekMessageA(struct MSG*, int64, int32, int32, int32);
+extern int32 TranslateMessage(struct MSG*);
+extern int64 DispatchMessageA(struct MSG*);
+extern int32 StretchDIBits(int64, int32, int32, int32, int32, int32, int32, int32, int32, int64, int64, int32, int32);
+extern void Sleep(int32);
+extern int64 malloc(int64);
+extern void free(int64);
+
+int64 drawg_bgr32(int64 rgb) {
+    int64 r = (rgb >> 16) & 255;
+    int64 g = (rgb >> 8) & 255;
+    int64 b = rgb & 255;
+    return b | (g << 8) | (r << 16);
+}
+
+int32 drawg_backend_init(int32 width, int32 height, string title) {
+    int64 WS_OVERLAPPEDWINDOW = 0x00CF0000;
+    int64 WS_VISIBLE = 0x10000000;
+
+    drawg_win_hwnd = CreateWindowExA(0, "STATIC", title, WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+        100, 100, width + 16, height + 39, 0, 0, 0, 0);
+    if (drawg_win_hwnd == 0) return 0;
+
+    ShowWindow(drawg_win_hwnd, 1);
+    UpdateWindow(drawg_win_hwnd);
+
+    drawg_win_hdc = GetDC(drawg_win_hwnd);
+    if (drawg_win_hdc == 0) return 0;
+
+    drawg_bmi.biSize = 40;
+    drawg_bmi.biWidth = width;
+    drawg_bmi.biHeight = -height;
+    drawg_bmi.biPlanes = 1;
+    drawg_bmi.biBitCount = 32;
+    drawg_bmi.biCompression = 0;
+    drawg_bmi.biSizeImage = 0;
+    drawg_bmi.biXPelsPerMeter = 0;
+    drawg_bmi.biYPelsPerMeter = 0;
+    drawg_bmi.biClrUsed = 0;
+    drawg_bmi.biClrImportant = 0;
+    drawg_bmi.bmiColors = 0;
+
+    drawg_win_close = 0;
+    return 1;
+}
+
+int32 drawg_backend_should_close() {
+    if (drawg_win_hwnd == 0) return 1;
+    if (IsWindow(drawg_win_hwnd) == 0) return 1;
+
+    struct MSG msg;
+    while (PeekMessageA(&msg, 0, 0, 0, 1) != 0) {
+        if (msg.message == 18) drawg_win_close = 1;
+        TranslateMessage(&msg);
+        DispatchMessageA(&msg);
+    }
+
+    return drawg_win_close;
+}
+
+void drawg_backend_present(int64 pixels, int32 width, int32 height) {
+    if (drawg_win_hdc == 0) return;
+
+    int64 count = width;
+    count = count * height;
+
+    int64 raw = malloc(count * 8);
+    if (raw == 0) return;
+
+    int64* src = pixels;
+    int64* dst = raw;
+    int64 i = 0;
+    while (i < count) {
+        *dst = drawg_bgr32(*src);
+        src += 1;
+        dst += 1;
+        i += 1;
+    }
+
+    int32 DIB_RGB_COLORS = 0;
+    int32 SRCCOPY = 0x00CC0020;
+    StretchDIBits(drawg_win_hdc, 0, 0, width, height, 0, 0, width, height, raw, &drawg_bmi, DIB_RGB_COLORS, SRCCOPY);
+
+    free(raw);
+}
+
+void drawg_backend_sleep(int32 ms) {
+    if (ms <= 0) return;
+    Sleep(ms);
+}
+
+void drawg_backend_shutdown() {
+    if (drawg_win_hdc != 0 && drawg_win_hwnd != 0) {
+        ReleaseDC(drawg_win_hwnd, drawg_win_hdc);
+        drawg_win_hdc = 0;
+    }
+    if (drawg_win_hwnd != 0) {
+        DestroyWindow(drawg_win_hwnd);
+        drawg_win_hwnd = 0;
+    }
+    drawg_win_close = 1;
+}
