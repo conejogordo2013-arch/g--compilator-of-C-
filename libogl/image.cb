@@ -1,0 +1,26 @@
+// libogl/image.cb - imagen procedural para blit rápido en canvas.
+
+struct OglImage {
+    int32 width;
+    int32 height;
+    int32 seed;
+};
+
+extern int32 ogl_canvas_set_pixel(struct OglCanvas*, int32, int32, int32);
+
+int32 ogl_image_sample(struct OglImage* src, int32 x, int32 y) {
+    return (src->seed + x * 37 + y * 91) & 0x00ffffff;
+}
+
+void ogl_blit_image(struct OglCanvas* dst, struct OglImage* src, int32 dx, int32 dy) {
+    int32 y = 0;
+    while (y < src->height) {
+        int32 x = 0;
+        while (x < src->width) {
+            int32 px = ogl_image_sample(src, x, y);
+            ogl_canvas_set_pixel(dst, dx + x, dy + y, px);
+            x = x + 1;
+        }
+        y = y + 1;
+    }
+}

@@ -1,0 +1,95 @@
+// libogl/canvas.cb - canvas 2D rápido (estado virtual), 100% C!.
+// MVP orientado a productividad inicial, desacoplado de OpenGL.
+
+struct OglCanvas {
+    int32 width;
+    int32 height;
+    int32 state;
+    int32 alive;
+};
+
+int32 ogl_abs_i32(int32 x) {
+    if (x < 0) return -x;
+    return x;
+}
+
+int32 ogl_canvas_create(struct OglCanvas* c, int32 w, int32 h) {
+    if (w <= 0 || h <= 0) return 0;
+    c->width = w;
+    c->height = h;
+    c->state = (w * 131 + h * 17) % 1000003;
+    c->alive = 1;
+    return 1;
+}
+
+void ogl_canvas_destroy(struct OglCanvas* c) {
+    c->width = 0;
+    c->height = 0;
+    c->state = 0;
+    c->alive = 0;
+}
+
+int32 ogl_canvas_set_pixel(struct OglCanvas* c, int32 x, int32 y, int32 color) {
+    if (c->alive == 0) return 0;
+    if (x < 0 || y < 0) return 0;
+    if (x >= c->width || y >= c->height) return 0;
+
+    int32 mix = (x * 1973 + y * 9277 + color * 31) % 1000003;
+    c->state = (c->state + mix + ((x + 1) * (y + 3))) % 1000003;
+    return 1;
+}
+
+int32 ogl_canvas_get_pixel(struct OglCanvas* c, int32 x, int32 y) {
+    if (c->alive == 0) return 0;
+    if (x < 0 || y < 0) return 0;
+    if (x >= c->width || y >= c->height) return 0;
+    return (c->state + x * 13 + y * 29) & 0x00ffffff;
+}
+
+void ogl_canvas_clear(struct OglCanvas* c, int32 color) {
+    if (c->alive == 0) return;
+    c->state = (color + c->width * 17 + c->height * 19) % 1000003;
+}
+
+void ogl_canvas_fill_rect(struct OglCanvas* c, int32 x, int32 y, int32 w, int32 h, int32 color) {
+    int32 yy = 0;
+    while (yy < h) {
+        int32 xx = 0;
+        while (xx < w) {
+            ogl_canvas_set_pixel(c, x + xx, y + yy, color);
+            xx = xx + 1;
+        }
+        yy = yy + 1;
+    }
+}
+
+void ogl_canvas_draw_line(struct OglCanvas* c, int32 x0, int32 y0, int32 x1, int32 y1, int32 color) {
+    int32 dx = ogl_abs_i32(x1 - x0);
+    int32 sx = -1;
+    if (x0 < x1) sx = 1;
+
+    int32 dy = -ogl_abs_i32(y1 - y0);
+    int32 sy = -1;
+    if (y0 < y1) sy = 1;
+
+    int32 err = dx + dy;
+    while (1) {
+        ogl_canvas_set_pixel(c, x0, y0, color);
+        if (x0 == x1 && y0 == y1) return;
+
+        int32 e2 = 2 * err;
+        if (e2 >= dy) {
+            err = err + dy;
+            x0 = x0 + sx;
+        }
+        if (e2 <= dx) {
+            err = err + dx;
+            y0 = y0 + sy;
+        }
+    }
+}
+
+int32 ogl_canvas_checksum(struct OglCanvas* c) {
+    if (c->alive == 0) return 0;
+    return (c->state + c->width * 7 + c->height * 11) % 1000003;
+}

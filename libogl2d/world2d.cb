@@ -1,0 +1,115 @@
+// libogl2d/world2d.cb - mundo físico 2D (campos planos).
+
+struct Ogl2Body {
+    int32 pos_x;
+    int32 pos_y;
+    int32 vel_x;
+    int32 vel_y;
+    int32 force_x;
+    int32 force_y;
+    int32 mass;
+    int32 inv_mass;
+    int32 radius;
+    int32 restitution;
+    int32 is_static;
+};
+
+struct Ogl2World {
+    int32 gravity_x;
+    int32 gravity_y;
+    int32 min_x;
+    int32 max_x;
+    int32 min_y;
+    int32 max_y;
+};
+
+void ogl2_world_init(struct Ogl2World* w, int32 gx, int32 gy, int32 minx, int32 maxx, int32 miny, int32 maxy) {
+    w->gravity_x = gx;
+    w->gravity_y = gy;
+    w->min_x = minx;
+    w->max_x = maxx;
+    w->min_y = miny;
+    w->max_y = maxy;
+}
+
+extern void ogl2_body_add_force(struct Ogl2Body*, int32, int32);
+extern void ogl2_body_integrate(struct Ogl2Body*, int32);
+extern int32 ogl2_abs_i32(int32);
+
+void ogl2_world_resolve_bounds(struct Ogl2World* w, struct Ogl2Body* b) {
+    if (b->is_static != 0) return;
+
+    int32 minx = w->min_x + b->radius;
+    int32 maxx = w->max_x - b->radius;
+    int32 miny = w->min_y + b->radius;
+    int32 maxy = w->max_y - b->radius;
+
+    if (b->pos_x < minx) { b->pos_x = minx; b->vel_x = -(b->vel_x * b->restitution) / 1000; }
+    if (b->pos_x > maxx) { b->pos_x = maxx; b->vel_x = -(b->vel_x * b->restitution) / 1000; }
+    if (b->pos_y < miny) { b->pos_y = miny; b->vel_y = -(b->vel_y * b->restitution) / 1000; }
+    if (b->pos_y > maxy) { b->pos_y = maxy; b->vel_y = -(b->vel_y * b->restitution) / 1000; }
+}
+
+void ogl2_world_step_body(struct Ogl2World* w, struct Ogl2Body* b, int32 dt_ms) {
+    if (b->is_static == 0) {
+        int32 fx = (w->gravity_x * b->mass) / 1000;
+        int32 fy = (w->gravity_y * b->mass) / 1000;
+        ogl2_body_add_force(b, fx, fy);
+    }
+    ogl2_body_integrate(b, dt_ms);
+    ogl2_world_resolve_bounds(w, b);
+}
+
+void ogl2_world_collide_pair(struct Ogl2Body* a, struct Ogl2Body* b) {
+    if (a->is_static != 0 && b->is_static != 0) return;
+
+    int32 dx = b->pos_x - a->pos_x;
+    int32 dy = b->pos_y - a->pos_y;
+    int32 rr = a->radius + b->radius;
+    int32 dist2 = dx * dx + dy * dy;
+    if (dist2 > rr * rr) return;
+
+    int32 rvx = b->vel_x - a->vel_x;
+    int32 rvy = b->vel_y - a->vel_y;
+    int32 closing = rvx * dx + rvy * dy;
+    if (closing >= 0) return;
+
+    int32 avg_rest = (a->restitution + b->restitution) / 2;
+
+    int32 tmpx = a->vel_x;
+    int32 tmpy = a->vel_y;
+    if (a->is_static == 0) {
+        a->vel_x = (b->vel_x * avg_rest) / 1000;
+        a->vel_y = (b->vel_y * avg_rest) / 1000;
+    }
+    if (b->is_static == 0) {
+        b->vel_x = (tmpx * avg_rest) / 1000;
+        b->vel_y = (tmpy * avg_rest) / 1000;
+    }
+
+    int32 sep = rr - (ogl2_abs_i32(dx) + ogl2_abs_i32(dy)) / 2;
+    if (sep < 0) sep = 0;
+    if (a->is_static == 0) {
+        a->pos_x = a->pos_x - (dx / 4);
+        a->pos_y = a->pos_y - (dy / 4);
+    }
+    if (b->is_static == 0) {
+        b->pos_x = b->pos_x + (dx / 4);
+        b->pos_y = b->pos_y + (dy / 4);
+    }
+    if (sep > 0) {
+        if (a->is_static == 0) a->pos_y = a->pos_y - 1;
+        if (b->is_static == 0) b->pos_y = b->pos_y + 1;
+    }
+}
+
+int32 ogl2_abs_i32(int32 x) {
+    if (x < 0) return -x;
+    return x;
+}
+
+void ogl2_world_step_pair(struct Ogl2World* w, struct Ogl2Body* a, struct Ogl2Body* b, int32 dt_ms) {
+    ogl2_world_step_body(w, a, dt_ms);
+    ogl2_world_step_body(w, b, dt_ms);
+    ogl2_world_collide_pair(a, b);
+}

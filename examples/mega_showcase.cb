@@ -1,0 +1,802 @@
+import system;
+
+// mega_showcase.cb: demostración extensa de sintaxis C! con funciones de varios tipos.
+// Incluye: aritmética, bitwise, ramas, loops, punteros/structs y recursión controlada.
+
+struct Pair {
+    int32 a;
+    int32 b;
+};
+
+struct Metrics {
+    int32 minv;
+    int32 maxv;
+    int32 sum;
+    int32 count;
+};
+
+int32 abs_i32(int32 v) {
+    if (v < 0) return -v;
+    return v;
+}
+
+void metrics_init(struct Metrics* m, int32 seed) {
+    m->minv = seed;
+    m->maxv = seed;
+    m->sum = seed;
+    m->count = 1;
+}
+
+void metrics_push(struct Metrics* m, int32 v) {
+    if (v < m->minv) m->minv = v;
+    if (v > m->maxv) m->maxv = v;
+    m->sum = (m->sum + v) % 100000;
+    m->count = m->count + 1;
+}
+
+int32 pair_fold(struct Pair* p, int32 k) {
+    int32 x = (p->a * k) + (p->b * (k + 1));
+    return x % 997;
+}
+
+int32 rec_sum(int32 n) {
+    if (n <= 0) return 0;
+    return n + rec_sum(n - 1);
+}
+
+int32 rec_mix(int32 n) {
+    if (n <= 1) return 1;
+    return (rec_mix(n - 1) + rec_mix(n - 2) + n) % 97;
+}
+
+int32 arith_01(int32 x) {
+    int32 y = (x + 8) % 1009;
+    y = (y * 9) % 1009;
+    y = y - 12;
+    if (y < 0) y = y + 1009;
+    return y % 251;
+}
+
+int32 arith_02(int32 x) {
+    int32 y = (x + 13) % 1009;
+    y = (y * 16) % 1009;
+    y = y - 23;
+    if (y < 0) y = y + 1009;
+    return y % 251;
+}
+
+int32 arith_03(int32 x) {
+    int32 y = (x + 18) % 1009;
+    y = (y * 23) % 1009;
+    y = y - 3;
+    if (y < 0) y = y + 1009;
+    return y % 251;
+}
+
+int32 arith_04(int32 x) {
+    int32 y = (x + 23) % 1009;
+    y = (y * 30) % 1009;
+    y = y - 14;
+    if (y < 0) y = y + 1009;
+    return y % 251;
+}
+
+int32 arith_05(int32 x) {
+    int32 y = (x + 28) % 1009;
+    y = (y * 8) % 1009;
+    y = y - 25;
+    if (y < 0) y = y + 1009;
+    return y % 251;
+}
+
+int32 arith_06(int32 x) {
+    int32 y = (x + 33) % 1009;
+    y = (y * 15) % 1009;
+    y = y - 5;
+    if (y < 0) y = y + 1009;
+    return y % 251;
+}
+
+int32 arith_07(int32 x) {
+    int32 y = (x + 38) % 1009;
+    y = (y * 22) % 1009;
+    y = y - 16;
+    if (y < 0) y = y + 1009;
+    return y % 251;
+}
+
+int32 arith_08(int32 x) {
+    int32 y = (x + 43) % 1009;
+    y = (y * 29) % 1009;
+    y = y - 27;
+    if (y < 0) y = y + 1009;
+    return y % 251;
+}
+
+int32 arith_09(int32 x) {
+    int32 y = (x + 5) % 1009;
+    y = (y * 7) % 1009;
+    y = y - 7;
+    if (y < 0) y = y + 1009;
+    return y % 251;
+}
+
+int32 arith_10(int32 x) {
+    int32 y = (x + 10) % 1009;
+    y = (y * 14) % 1009;
+    y = y - 18;
+    if (y < 0) y = y + 1009;
+    return y % 251;
+}
+
+int32 arith_11(int32 x) {
+    int32 y = (x + 15) % 1009;
+    y = (y * 21) % 1009;
+    y = y - 29;
+    if (y < 0) y = y + 1009;
+    return y % 251;
+}
+
+int32 arith_12(int32 x) {
+    int32 y = (x + 20) % 1009;
+    y = (y * 28) % 1009;
+    y = y - 9;
+    if (y < 0) y = y + 1009;
+    return y % 251;
+}
+
+int32 arith_13(int32 x) {
+    int32 y = (x + 25) % 1009;
+    y = (y * 6) % 1009;
+    y = y - 20;
+    if (y < 0) y = y + 1009;
+    return y % 251;
+}
+
+int32 arith_14(int32 x) {
+    int32 y = (x + 30) % 1009;
+    y = (y * 13) % 1009;
+    y = y - 31;
+    if (y < 0) y = y + 1009;
+    return y % 251;
+}
+
+int32 arith_15(int32 x) {
+    int32 y = (x + 35) % 1009;
+    y = (y * 20) % 1009;
+    y = y - 11;
+    if (y < 0) y = y + 1009;
+    return y % 251;
+}
+
+int32 arith_16(int32 x) {
+    int32 y = (x + 40) % 1009;
+    y = (y * 27) % 1009;
+    y = y - 22;
+    if (y < 0) y = y + 1009;
+    return y % 251;
+}
+
+int32 arith_17(int32 x) {
+    int32 y = (x + 45) % 1009;
+    y = (y * 5) % 1009;
+    y = y - 2;
+    if (y < 0) y = y + 1009;
+    return y % 251;
+}
+
+int32 arith_18(int32 x) {
+    int32 y = (x + 7) % 1009;
+    y = (y * 12) % 1009;
+    y = y - 13;
+    if (y < 0) y = y + 1009;
+    return y % 251;
+}
+
+int32 arith_19(int32 x) {
+    int32 y = (x + 12) % 1009;
+    y = (y * 19) % 1009;
+    y = y - 24;
+    if (y < 0) y = y + 1009;
+    return y % 251;
+}
+
+int32 arith_20(int32 x) {
+    int32 y = (x + 17) % 1009;
+    y = (y * 26) % 1009;
+    y = y - 4;
+    if (y < 0) y = y + 1009;
+    return y % 251;
+}
+
+int32 bitwise_01(int32 x) {
+    int32 y = x ^ 10;
+    y = y + (x << 2);
+    y = y ^ (y >> 2);
+    y = y + 13;
+    if (y < 0) y = -y;
+    return y % 251;
+}
+
+int32 bitwise_02(int32 x) {
+    int32 y = x ^ 19;
+    y = y + (x << 3);
+    y = y ^ (y >> 3);
+    y = y + 26;
+    if (y < 0) y = -y;
+    return y % 251;
+}
+
+int32 bitwise_03(int32 x) {
+    int32 y = x ^ 28;
+    y = y + (x << 4);
+    y = y ^ (y >> 4);
+    y = y + 39;
+    if (y < 0) y = -y;
+    return y % 251;
+}
+
+int32 bitwise_04(int32 x) {
+    int32 y = x ^ 37;
+    y = y + (x << 5);
+    y = y ^ (y >> 5);
+    y = y + 52;
+    if (y < 0) y = -y;
+    return y % 251;
+}
+
+int32 bitwise_05(int32 x) {
+    int32 y = x ^ 46;
+    y = y + (x << 1);
+    y = y ^ (y >> 1);
+    y = y + 65;
+    if (y < 0) y = -y;
+    return y % 251;
+}
+
+int32 bitwise_06(int32 x) {
+    int32 y = x ^ 55;
+    y = y + (x << 2);
+    y = y ^ (y >> 2);
+    y = y + 78;
+    if (y < 0) y = -y;
+    return y % 251;
+}
+
+int32 bitwise_07(int32 x) {
+    int32 y = x ^ 64;
+    y = y + (x << 3);
+    y = y ^ (y >> 3);
+    y = y + 91;
+    if (y < 0) y = -y;
+    return y % 251;
+}
+
+int32 bitwise_08(int32 x) {
+    int32 y = x ^ 73;
+    y = y + (x << 4);
+    y = y ^ (y >> 4);
+    y = y + 104;
+    if (y < 0) y = -y;
+    return y % 251;
+}
+
+int32 bitwise_09(int32 x) {
+    int32 y = x ^ 82;
+    y = y + (x << 5);
+    y = y ^ (y >> 5);
+    y = y + 117;
+    if (y < 0) y = -y;
+    return y % 251;
+}
+
+int32 bitwise_10(int32 x) {
+    int32 y = x ^ 91;
+    y = y + (x << 1);
+    y = y ^ (y >> 1);
+    y = y + 130;
+    if (y < 0) y = -y;
+    return y % 251;
+}
+
+int32 bitwise_11(int32 x) {
+    int32 y = x ^ 100;
+    y = y + (x << 2);
+    y = y ^ (y >> 2);
+    y = y + 143;
+    if (y < 0) y = -y;
+    return y % 251;
+}
+
+int32 bitwise_12(int32 x) {
+    int32 y = x ^ 109;
+    y = y + (x << 3);
+    y = y ^ (y >> 3);
+    y = y + 156;
+    if (y < 0) y = -y;
+    return y % 251;
+}
+
+int32 bitwise_13(int32 x) {
+    int32 y = x ^ 118;
+    y = y + (x << 4);
+    y = y ^ (y >> 4);
+    y = y + 169;
+    if (y < 0) y = -y;
+    return y % 251;
+}
+
+int32 bitwise_14(int32 x) {
+    int32 y = x ^ 127;
+    y = y + (x << 5);
+    y = y ^ (y >> 5);
+    y = y + 182;
+    if (y < 0) y = -y;
+    return y % 251;
+}
+
+int32 bitwise_15(int32 x) {
+    int32 y = x ^ 9;
+    y = y + (x << 1);
+    y = y ^ (y >> 1);
+    y = y + 195;
+    if (y < 0) y = -y;
+    return y % 251;
+}
+
+int32 bitwise_16(int32 x) {
+    int32 y = x ^ 18;
+    y = y + (x << 2);
+    y = y ^ (y >> 2);
+    y = y + 208;
+    if (y < 0) y = -y;
+    return y % 251;
+}
+
+int32 bitwise_17(int32 x) {
+    int32 y = x ^ 27;
+    y = y + (x << 3);
+    y = y ^ (y >> 3);
+    y = y + 221;
+    if (y < 0) y = -y;
+    return y % 251;
+}
+
+int32 bitwise_18(int32 x) {
+    int32 y = x ^ 36;
+    y = y + (x << 4);
+    y = y ^ (y >> 4);
+    y = y + 234;
+    if (y < 0) y = -y;
+    return y % 251;
+}
+
+int32 bitwise_19(int32 x) {
+    int32 y = x ^ 45;
+    y = y + (x << 5);
+    y = y ^ (y >> 5);
+    y = y + 247;
+    if (y < 0) y = -y;
+    return y % 251;
+}
+
+int32 bitwise_20(int32 x) {
+    int32 y = x ^ 54;
+    y = y + (x << 1);
+    y = y ^ (y >> 1);
+    y = y + 5;
+    if (y < 0) y = -y;
+    return y % 251;
+}
+
+int32 branch_01(int32 x) {
+    if ((x % 5) == 0) {
+        return (x / 5 + 7) % 251;
+    } else if ((x & 1) == 0) {
+        return (x + 5 + 7) % 251;
+    }
+    return (x * 5 + 7) % 251;
+}
+
+int32 branch_02(int32 x) {
+    if ((x % 8) == 0) {
+        return (x / 8 + 11) % 251;
+    } else if ((x & 1) == 0) {
+        return (x + 8 + 11) % 251;
+    }
+    return (x * 8 + 11) % 251;
+}
+
+int32 branch_03(int32 x) {
+    if ((x % 11) == 0) {
+        return (x / 11 + 15) % 251;
+    } else if ((x & 1) == 0) {
+        return (x + 11 + 15) % 251;
+    }
+    return (x * 11 + 15) % 251;
+}
+
+int32 branch_04(int32 x) {
+    if ((x % 14) == 0) {
+        return (x / 14 + 19) % 251;
+    } else if ((x & 1) == 0) {
+        return (x + 14 + 19) % 251;
+    }
+    return (x * 14 + 19) % 251;
+}
+
+int32 branch_05(int32 x) {
+    if ((x % 17) == 0) {
+        return (x / 17 + 6) % 251;
+    } else if ((x & 1) == 0) {
+        return (x + 17 + 6) % 251;
+    }
+    return (x * 17 + 6) % 251;
+}
+
+int32 branch_06(int32 x) {
+    if ((x % 20) == 0) {
+        return (x / 20 + 10) % 251;
+    } else if ((x & 1) == 0) {
+        return (x + 20 + 10) % 251;
+    }
+    return (x * 20 + 10) % 251;
+}
+
+int32 branch_07(int32 x) {
+    if ((x % 4) == 0) {
+        return (x / 4 + 14) % 251;
+    } else if ((x & 1) == 0) {
+        return (x + 4 + 14) % 251;
+    }
+    return (x * 4 + 14) % 251;
+}
+
+int32 branch_08(int32 x) {
+    if ((x % 7) == 0) {
+        return (x / 7 + 18) % 251;
+    } else if ((x & 1) == 0) {
+        return (x + 7 + 18) % 251;
+    }
+    return (x * 7 + 18) % 251;
+}
+
+int32 branch_09(int32 x) {
+    if ((x % 10) == 0) {
+        return (x / 10 + 5) % 251;
+    } else if ((x & 1) == 0) {
+        return (x + 10 + 5) % 251;
+    }
+    return (x * 10 + 5) % 251;
+}
+
+int32 branch_10(int32 x) {
+    if ((x % 13) == 0) {
+        return (x / 13 + 9) % 251;
+    } else if ((x & 1) == 0) {
+        return (x + 13 + 9) % 251;
+    }
+    return (x * 13 + 9) % 251;
+}
+
+int32 branch_11(int32 x) {
+    if ((x % 16) == 0) {
+        return (x / 16 + 13) % 251;
+    } else if ((x & 1) == 0) {
+        return (x + 16 + 13) % 251;
+    }
+    return (x * 16 + 13) % 251;
+}
+
+int32 branch_12(int32 x) {
+    if ((x % 19) == 0) {
+        return (x / 19 + 17) % 251;
+    } else if ((x & 1) == 0) {
+        return (x + 19 + 17) % 251;
+    }
+    return (x * 19 + 17) % 251;
+}
+
+int32 branch_13(int32 x) {
+    if ((x % 3) == 0) {
+        return (x / 3 + 4) % 251;
+    } else if ((x & 1) == 0) {
+        return (x + 3 + 4) % 251;
+    }
+    return (x * 3 + 4) % 251;
+}
+
+int32 branch_14(int32 x) {
+    if ((x % 6) == 0) {
+        return (x / 6 + 8) % 251;
+    } else if ((x & 1) == 0) {
+        return (x + 6 + 8) % 251;
+    }
+    return (x * 6 + 8) % 251;
+}
+
+int32 branch_15(int32 x) {
+    if ((x % 9) == 0) {
+        return (x / 9 + 12) % 251;
+    } else if ((x & 1) == 0) {
+        return (x + 9 + 12) % 251;
+    }
+    return (x * 9 + 12) % 251;
+}
+
+int32 loop_01(int32 x) {
+    int32 i = 0;
+    int32 y = x;
+    while (i < 4) {
+        y = ((y * 7) + 8 + i) % 251;
+        i = i + 1;
+    }
+    return y;
+}
+
+int32 loop_02(int32 x) {
+    int32 i = 0;
+    int32 y = x;
+    while (i < 5) {
+        y = ((y * 12) + 15 + i) % 251;
+        i = i + 1;
+    }
+    return y;
+}
+
+int32 loop_03(int32 x) {
+    int32 i = 0;
+    int32 y = x;
+    while (i < 6) {
+        y = ((y * 6) + 22 + i) % 251;
+        i = i + 1;
+    }
+    return y;
+}
+
+int32 loop_04(int32 x) {
+    int32 i = 0;
+    int32 y = x;
+    while (i < 7) {
+        y = ((y * 11) + 6 + i) % 251;
+        i = i + 1;
+    }
+    return y;
+}
+
+int32 loop_05(int32 x) {
+    int32 i = 0;
+    int32 y = x;
+    while (i < 8) {
+        y = ((y * 5) + 13 + i) % 251;
+        i = i + 1;
+    }
+    return y;
+}
+
+int32 loop_06(int32 x) {
+    int32 i = 0;
+    int32 y = x;
+    while (i < 9) {
+        y = ((y * 10) + 20 + i) % 251;
+        i = i + 1;
+    }
+    return y;
+}
+
+int32 loop_07(int32 x) {
+    int32 i = 0;
+    int32 y = x;
+    while (i < 10) {
+        y = ((y * 4) + 4 + i) % 251;
+        i = i + 1;
+    }
+    return y;
+}
+
+int32 loop_08(int32 x) {
+    int32 i = 0;
+    int32 y = x;
+    while (i < 11) {
+        y = ((y * 9) + 11 + i) % 251;
+        i = i + 1;
+    }
+    return y;
+}
+
+int32 loop_09(int32 x) {
+    int32 i = 0;
+    int32 y = x;
+    while (i < 12) {
+        y = ((y * 3) + 18 + i) % 251;
+        i = i + 1;
+    }
+    return y;
+}
+
+int32 loop_10(int32 x) {
+    int32 i = 0;
+    int32 y = x;
+    while (i < 13) {
+        y = ((y * 8) + 2 + i) % 251;
+        i = i + 1;
+    }
+    return y;
+}
+
+int32 loop_11(int32 x) {
+    int32 i = 0;
+    int32 y = x;
+    while (i < 14) {
+        y = ((y * 2) + 9 + i) % 251;
+        i = i + 1;
+    }
+    return y;
+}
+
+int32 loop_12(int32 x) {
+    int32 i = 0;
+    int32 y = x;
+    while (i < 15) {
+        y = ((y * 7) + 16 + i) % 251;
+        i = i + 1;
+    }
+    return y;
+}
+
+int32 struct_fn_01(struct Pair* p, int32 x) {
+    p->a = (p->a + x + 3) % 251;
+    p->b = (p->b + p->a + 1) % 251;
+    int32 z = pair_fold(p, (x % 7) + 1);
+    return z % 251;
+}
+
+int32 struct_fn_02(struct Pair* p, int32 x) {
+    p->a = (p->a + x + 5) % 251;
+    p->b = (p->b + p->a + 2) % 251;
+    int32 z = pair_fold(p, (x % 7) + 1);
+    return z % 251;
+}
+
+int32 struct_fn_03(struct Pair* p, int32 x) {
+    p->a = (p->a + x + 7) % 251;
+    p->b = (p->b + p->a + 3) % 251;
+    int32 z = pair_fold(p, (x % 7) + 1);
+    return z % 251;
+}
+
+int32 struct_fn_04(struct Pair* p, int32 x) {
+    p->a = (p->a + x + 9) % 251;
+    p->b = (p->b + p->a + 4) % 251;
+    int32 z = pair_fold(p, (x % 7) + 1);
+    return z % 251;
+}
+
+int32 struct_fn_05(struct Pair* p, int32 x) {
+    p->a = (p->a + x + 11) % 251;
+    p->b = (p->b + p->a + 5) % 251;
+    int32 z = pair_fold(p, (x % 7) + 1);
+    return z % 251;
+}
+
+int32 struct_fn_06(struct Pair* p, int32 x) {
+    p->a = (p->a + x + 13) % 251;
+    p->b = (p->b + p->a + 6) % 251;
+    int32 z = pair_fold(p, (x % 7) + 1);
+    return z % 251;
+}
+
+int32 struct_fn_07(struct Pair* p, int32 x) {
+    p->a = (p->a + x + 15) % 251;
+    p->b = (p->b + p->a + 7) % 251;
+    int32 z = pair_fold(p, (x % 7) + 1);
+    return z % 251;
+}
+
+int32 struct_fn_08(struct Pair* p, int32 x) {
+    p->a = (p->a + x + 17) % 251;
+    p->b = (p->b + p->a + 8) % 251;
+    int32 z = pair_fold(p, (x % 7) + 1);
+    return z % 251;
+}
+
+int32 run_all(int32 seed) {
+    int32 acc = seed;
+    acc = arith_01(acc);
+    acc = arith_02(acc);
+    acc = arith_03(acc);
+    acc = arith_04(acc);
+    acc = arith_05(acc);
+    acc = arith_06(acc);
+    acc = arith_07(acc);
+    acc = arith_08(acc);
+    acc = arith_09(acc);
+    acc = arith_10(acc);
+    acc = arith_11(acc);
+    acc = arith_12(acc);
+    acc = arith_13(acc);
+    acc = arith_14(acc);
+    acc = arith_15(acc);
+    acc = arith_16(acc);
+    acc = arith_17(acc);
+    acc = arith_18(acc);
+    acc = arith_19(acc);
+    acc = arith_20(acc);
+    acc = bitwise_01(acc);
+    acc = bitwise_02(acc);
+    acc = bitwise_03(acc);
+    acc = bitwise_04(acc);
+    acc = bitwise_05(acc);
+    acc = bitwise_06(acc);
+    acc = bitwise_07(acc);
+    acc = bitwise_08(acc);
+    acc = bitwise_09(acc);
+    acc = bitwise_10(acc);
+    acc = bitwise_11(acc);
+    acc = bitwise_12(acc);
+    acc = bitwise_13(acc);
+    acc = bitwise_14(acc);
+    acc = bitwise_15(acc);
+    acc = bitwise_16(acc);
+    acc = bitwise_17(acc);
+    acc = bitwise_18(acc);
+    acc = bitwise_19(acc);
+    acc = bitwise_20(acc);
+    acc = branch_01(acc);
+    acc = branch_02(acc);
+    acc = branch_03(acc);
+    acc = branch_04(acc);
+    acc = branch_05(acc);
+    acc = branch_06(acc);
+    acc = branch_07(acc);
+    acc = branch_08(acc);
+    acc = branch_09(acc);
+    acc = branch_10(acc);
+    acc = branch_11(acc);
+    acc = branch_12(acc);
+    acc = branch_13(acc);
+    acc = branch_14(acc);
+    acc = branch_15(acc);
+    acc = loop_01(acc);
+    acc = loop_02(acc);
+    acc = loop_03(acc);
+    acc = loop_04(acc);
+    acc = loop_05(acc);
+    acc = loop_06(acc);
+    acc = loop_07(acc);
+    acc = loop_08(acc);
+    acc = loop_09(acc);
+    acc = loop_10(acc);
+    acc = loop_11(acc);
+    acc = loop_12(acc);
+    return acc;
+}
+
+int32 main() {
+    struct Metrics m;
+    struct Pair p;
+    p.a = 7;
+    p.b = 11;
+    metrics_init(&m, 19);
+
+    int32 i = 0;
+    int32 acc = 19;
+    while (i < 12) {
+        acc = run_all((acc + i + rec_sum(i % 5)) % 251);
+        acc = (acc + rec_mix((i % 6) + 2)) % 251;
+        acc = (acc + struct_fn_01(&p, acc)) % 251;
+        acc = (acc + struct_fn_02(&p, acc)) % 251;
+        acc = (acc + struct_fn_03(&p, acc)) % 251;
+        acc = (acc + struct_fn_04(&p, acc)) % 251;
+        acc = (acc + struct_fn_05(&p, acc)) % 251;
+        acc = (acc + struct_fn_06(&p, acc)) % 251;
+        acc = (acc + struct_fn_07(&p, acc)) % 251;
+        acc = (acc + struct_fn_08(&p, acc)) % 251;
+        metrics_push(&m, acc);
+        i = i + 1;
+    }
+
+    int32 signature = (m.minv + (m.maxv * 2) + m.sum + m.count + p.a + p.b + acc + abs_i32(acc - 100)) % 127;
+    system_exit(signature);
+    return 0;
+}

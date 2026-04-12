@@ -1,0 +1,44 @@
+import system;
+
+struct Ogl2Body {
+    int32 pos_x;
+    int32 pos_y;
+    int32 vel_x;
+    int32 vel_y;
+    int32 force_x;
+    int32 force_y;
+    int32 mass;
+    int32 inv_mass;
+    int32 radius;
+    int32 restitution;
+    int32 is_static;
+};
+struct Ogl2World {
+    int32 gravity_x;
+    int32 gravity_y;
+    int32 min_x;
+    int32 max_x;
+    int32 min_y;
+    int32 max_y;
+};
+
+extern void ogl2_body_init_dynamic(struct Ogl2Body*, int32, int32, int32, int32);
+extern void ogl2_world_init(struct Ogl2World*, int32, int32, int32, int32, int32, int32);
+extern void ogl2_world_step_body(struct Ogl2World*, struct Ogl2Body*, int32);
+extern int32 ogl2_body_signature(struct Ogl2Body*);
+
+int32 main() {
+    struct Ogl2World w;
+    struct Ogl2Body b;
+    ogl2_world_init(&w, 0, 9800, -50000, 50000, -50000, 50000);
+    ogl2_body_init_dynamic(&b, 0, 0, 1000, 500);
+
+    int32 i = 0;
+    while (i < 40) {
+        ogl2_world_step_body(&w, &b, 16);
+        i = i + 1;
+    }
+
+    system_exit(ogl2_body_signature(&b) % 127);
+    return 0;
+}

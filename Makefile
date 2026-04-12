@@ -110,10 +110,25 @@ test-complex-cases:
 test-stutilsio:
 	bash scripts/test-stutilsio.sh
 
+test-libcbang:
+	bash scripts/test-libcbang.sh
+
+test-deep-validation:
+	bash scripts/test-deep-validation.sh
+
+test-ogl:
+	bash scripts/test-ogl.sh
+
+test-ogl2d:
+	bash scripts/test-ogl2d.sh
+
+test-ogl3d:
+	bash scripts/test-ogl3d.sh
+
 compat-matrix:
 	bash scripts/compat-matrix.sh
 
-quality-gate: selfhost-audit test-language-runtime test-frontend-robustness test-complex-cases test-stutilsio compat-matrix
+quality-gate: selfhost-audit test-language-runtime test-frontend-robustness test-complex-cases test-stutilsio test-libcbang test-deep-validation test-ogl test-ogl2d test-ogl3d compat-matrix
 
 abi-interop:
 	bash scripts/abi-interop-runner.sh
@@ -127,4 +142,4 @@ dev-test:
 smoke-hola-mundo:
 	bash scripts/smoke-hola-mundo.sh
 
-.PHONY: all stage0 original advanced bootstrap bootstrap-smoke bootstrap-no-cc bootstrap-no-cc-smoke no-cc-demo run-example no-cc-proof arm-stdlib selfhost-audit test-language-runtime test-frontend-robustness test-complex-cases test-stutilsio compat-matrix quality-gate abi-interop all-tests test dev-test smoke-hola-mundo clean install uninstall install-menu
+.PHONY: all stage0 original advanced bootstrap bootstrap-smoke bootstrap-no-cc bootstrap-no-cc-smoke no-cc-demo run-example no-cc-proof arm-stdlib selfhost-audit test-language-runtime test-frontend-robustness test-complex-cases test-stutilsio test-libcbang test-deep-validation test-ogl test-ogl2d test-ogl3d compat-matrix quality-gate abi-interop all-tests test dev-test smoke-hola-mundo clean install uninstall install-menu

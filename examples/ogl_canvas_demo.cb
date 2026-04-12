@@ -1,0 +1,37 @@
+import system;
+
+struct OglCanvas {
+    int32 width;
+    int32 height;
+    int32 state;
+    int32 alive;
+};
+
+extern int32 ogl_canvas_create(struct OglCanvas*, int32, int32);
+extern void ogl_canvas_destroy(struct OglCanvas*);
+extern void ogl_canvas_clear(struct OglCanvas*, int32);
+extern void ogl_canvas_fill_rect(struct OglCanvas*, int32, int32, int32, int32, int32);
+extern void ogl_canvas_draw_line(struct OglCanvas*, int32, int32, int32, int32, int32);
+extern int32 ogl_canvas_checksum(struct OglCanvas*);
+extern int32 ogl_color_black();
+extern int32 ogl_color_red();
+extern int32 ogl_color_green();
+extern int32 ogl_color_blue();
+
+int32 main() {
+    struct OglCanvas c;
+    if (ogl_canvas_create(&c, 32, 24) == 0) {
+        system_exit(1);
+        return 0;
+    }
+
+    ogl_canvas_clear(&c, ogl_color_black());
+    ogl_canvas_fill_rect(&c, 2, 2, 10, 6, ogl_color_red());
+    ogl_canvas_fill_rect(&c, 15, 4, 8, 8, ogl_color_green());
+    ogl_canvas_draw_line(&c, 0, 0, 31, 23, ogl_color_blue());
+
+    int32 sig = ogl_canvas_checksum(&c) % 127;
+    ogl_canvas_destroy(&c);
+    system_exit(sig);
+    return 0;
+}

@@ -1,0 +1,28 @@
+// libogl3d/debug3d.cb - helpers de debug para física 3D.
+
+struct Ogl3Body {
+    int32 pos_x;
+    int32 pos_y;
+    int32 pos_z;
+    int32 vel_x;
+    int32 vel_y;
+    int32 vel_z;
+    int32 force_x;
+    int32 force_y;
+    int32 force_z;
+    int32 mass;
+    int32 inv_mass;
+    int32 radius;
+    int32 restitution;
+    int32 is_static;
+};
+
+int32 ogl3_body_energy(struct Ogl3Body* b) {
+    if (b->is_static != 0) return 0;
+    int32 v2 = b->vel_x * b->vel_x + b->vel_y * b->vel_y + b->vel_z * b->vel_z;
+    return (b->mass * v2) / 2000;
+}
+
+int32 ogl3_body_signature(struct Ogl3Body* b) {
+    return (b->pos_x * 3 + b->pos_y * 5 + b->pos_z * 7 + b->vel_x * 11 + b->vel_y * 13 + b->vel_z * 17) % 1000003;
+}

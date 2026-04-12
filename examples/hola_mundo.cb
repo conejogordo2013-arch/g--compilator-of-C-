@@ -1,0 +1,6 @@
+extern int32 puts(string);
+
+int32 main() {
+    puts("Hola Mundo");
+    return 0;
+}

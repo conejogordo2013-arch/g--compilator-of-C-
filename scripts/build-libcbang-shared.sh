@@ -46,6 +46,7 @@ MODULES=(
   "libcbang/object.cb"
   "libcbang/oops.cb"
   "libcbang/collections.cb"
+  "libcbang/algorithms.cb"
 )
 
 OBJS=()

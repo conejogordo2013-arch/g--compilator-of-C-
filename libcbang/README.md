@@ -8,6 +8,7 @@ Librería estándar mínima para C! (GEE).
 - `object.cb`: objeto base con ciclo de vida.
 - `oops.cb`: dispatch dinámico simple (`cb_oops_call`).
 - `collections.cb`: colección dinámica básica.
+- `algorithms.cb`: utilidades algorítmicas (gcd/lcm, pow modular, hash mix).
 
 ## Build por arquitectura
 

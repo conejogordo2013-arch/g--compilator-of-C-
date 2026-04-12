@@ -1,0 +1,22 @@
+import system;
+
+int32 main() {
+    int32 a = 1;
+    int32 b = 1;
+    int32 i = 0;
+    int32 acc = 0;
+
+    while (i < 50000) {
+        int32 c = (a + b) & 1023;
+        a = b;
+        b = c;
+
+        if ((i & 7) == 0) acc = acc + c;
+        else acc = acc + (c >> 1);
+
+        i = i + 1;
+    }
+
+    system_exit(acc % 97);
+    return 0;
+}

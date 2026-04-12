@@ -1,0 +1,16 @@
+// libogl/backend.cb - interfaz backend opcional (OpenGL / SDL / etc.).
+// Esta capa evita acoplar C! directamente a OpenGL.
+
+struct OglCanvas {
+    int32 width;
+    int32 height;
+    int32 state;
+    int32 alive;
+};
+
+// Host opcional: puede implementarse en runtime externo o ignorarse.
+extern int32 ogl_backend_present(int32, int32, int32, int64);
+
+int32 ogl_present_canvas(struct OglCanvas* c, int32 backend_kind) {
+    return ogl_backend_present(backend_kind, c->width, c->height, c->state);
+}
