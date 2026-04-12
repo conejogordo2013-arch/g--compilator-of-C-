@@ -1,0 +1,39 @@
+import system;
+
+extern int32 cb_abs_i32(int32);
+extern int32 cb_gcd_i32(int32, int32);
+extern int32 cb_lcm_i32(int32, int32);
+extern int32 cb_pow_mod_i32(int32, int32, int32);
+extern int32 cb_hash_mix_i32(int32, int32);
+
+int32 main() {
+    if (cb_abs_i32(-19) != 19) {
+        system_exit(1);
+        return 0;
+    }
+
+    if (cb_gcd_i32(84, 30) != 6) {
+        system_exit(2);
+        return 0;
+    }
+
+    if (cb_lcm_i32(21, 6) != 42) {
+        system_exit(3);
+        return 0;
+    }
+
+    if (cb_pow_mod_i32(5, 13, 23) != 21) {
+        system_exit(4);
+        return 0;
+    }
+
+    int32 h1 = cb_hash_mix_i32(1337, 99);
+    int32 h2 = cb_hash_mix_i32(1337, 100);
+    if (h1 == h2) {
+        system_exit(5);
+        return 0;
+    }
+
+    system_exit(0);
+    return 0;
+}

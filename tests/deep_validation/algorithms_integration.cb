@@ -1,0 +1,14 @@
+import system;
+
+extern int32 cb_gcd_i32(int32, int32);
+extern int32 cb_lcm_i32(int32, int32);
+extern int32 cb_pow_mod_i32(int32, int32, int32);
+
+int32 main() {
+    int32 g = cb_gcd_i32(462, 1071);
+    int32 l = cb_lcm_i32(14, 15);
+    int32 p = cb_pow_mod_i32(g, 5, 97);
+
+    system_exit((l + p) % 64);
+    return 0;
+}
