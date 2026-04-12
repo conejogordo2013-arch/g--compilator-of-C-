@@ -1,0 +1,128 @@
+// drawg.cb - librería 2D software en C! con backend de ventana en tiempo real.
+
+struct DrawgCanvas {
+    int32 width;
+    int32 height;
+    int64 pixels;
+    int32 alive;
+};
+
+extern int64 malloc(int64);
+extern void free(int64);
+
+// Contrato backend (debe existir en runtime nativo para abrir ventana real).
+extern int32 drawg_backend_init(int32, int32, string);
+extern int32 drawg_backend_should_close();
+extern void drawg_backend_present(int64, int32, int32);
+extern void drawg_backend_sleep(int32);
+extern void drawg_backend_shutdown();
+
+int32 drawg_abs(int32 x) {
+    if (x < 0) return -x;
+    return x;
+}
+
+int64 drawg_rgb(int32 r, int32 g, int32 b) {
+    int64 rr = r;
+    int64 gg = g;
+    int64 bb = b;
+    return (rr << 16) | (gg << 8) | bb;
+}
+
+int32 drawg_open(struct DrawgCanvas* c, int32 width, int32 height, string title) {
+    c->width = width;
+    c->height = height;
+    c->alive = 0;
+    c->pixels = 0;
+
+    if (drawg_backend_init(width, height, title) == 0) return 0;
+
+    int64 total = width;
+    total = total * height;
+    total = total * 8;
+    c->pixels = malloc(total);
+    if (c->pixels == 0) {
+        drawg_backend_shutdown();
+        return 0;
+    }
+
+    c->alive = 1;
+    return 1;
+}
+
+void drawg_close(struct DrawgCanvas* c) {
+    if (c->pixels != 0) {
+        free(c->pixels);
+        c->pixels = 0;
+    }
+    if (c->alive == 1) {
+        drawg_backend_shutdown();
+    }
+    c->alive = 0;
+}
+
+void drawg_put_px(struct DrawgCanvas* c, int32 x, int32 y, int64 color) {
+    if (x < 0) return;
+    if (y < 0) return;
+    if (x >= c->width) return;
+    if (y >= c->height) return;
+
+    int64 idx = y;
+    idx = (idx * c->width) + x;
+    int64* p = c->pixels;
+    p += idx;
+    *p = color;
+}
+
+void drawg_clear(struct DrawgCanvas* c, int64 color) {
+    int64 total = c->width;
+    total = total * c->height;
+    int64* p = c->pixels;
+    int64 i = 0;
+    while (i < total) {
+        *p = color;
+        p += 1;
+        i += 1;
+    }
+}
+
+void drawg_line(struct DrawgCanvas* c, int32 x0, int32 y0, int32 x1, int32 y1, int64 color) {
+    int32 dx = drawg_abs(x1 - x0);
+    int32 sx = -1;
+    if (x0 < x1) sx = 1;
+
+    int32 dy = -drawg_abs(y1 - y0);
+    int32 sy = -1;
+    if (y0 < y1) sy = 1;
+
+    int32 err = dx + dy;
+
+    while (1) {
+        drawg_put_px(c, x0, y0, color);
+        if (x0 == x1) {
+            if (y0 == y1) return;
+        }
+
+        int32 e2 = err * 2;
+        if (e2 >= dy) {
+            err = err + dy;
+            x0 = x0 + sx;
+        }
+        if (e2 <= dx) {
+            err = err + dx;
+            y0 = y0 + sy;
+        }
+    }
+}
+
+int32 drawg_should_close() {
+    return drawg_backend_should_close();
+}
+
+void drawg_present(struct DrawgCanvas* c) {
+    drawg_backend_present(c->pixels, c->width, c->height);
+}
+
+void drawg_sleep_ms(int32 ms) {
+    drawg_backend_sleep(ms);
+}

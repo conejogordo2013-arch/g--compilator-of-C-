@@ -1,0 +1,74 @@
+// Backend Linux framebuffer (/dev/fb0) en C! puro.
+// Nota: requiere permisos y consola Linux con framebuffer disponible.
+
+int32 drawg_fb_fd = -1;
+int32 drawg_fb_alive = 0;
+int32 drawg_fb_frames = 0;
+
+int32 O_WRONLY = 1;
+int32 SEEK_SET = 0;
+
+extern int32 open(string, int32, int32);
+extern int32 close(int32);
+extern int64 write(int32, int64, int64);
+extern int64 lseek(int32, int64, int32);
+extern int32 usleep(int32);
+
+int64 drawg_rgb_to_bgra(int64 rgb) {
+    int64 r = (rgb >> 16) & 255;
+    int64 g = (rgb >> 8) & 255;
+    int64 b = rgb & 255;
+    int64 a = 0;
+    return b | (g << 8) | (r << 16) | (a << 24);
+}
+
+int32 drawg_backend_init(int32 width, int32 height, string title) {
+    drawg_fb_fd = open("/dev/fb0", O_WRONLY, 0);
+    if (drawg_fb_fd < 0) {
+        drawg_fb_alive = 0;
+        return 0;
+    }
+    drawg_fb_frames = 0;
+    drawg_fb_alive = 1;
+    return 1;
+}
+
+int32 drawg_backend_should_close() {
+    if (drawg_fb_alive == 0) return 1;
+    drawg_fb_frames = drawg_fb_frames + 1;
+    // Sin manejo de input aquí: se auto-cierra tras ~30s a 60 FPS.
+    if (drawg_fb_frames > 1800) return 1;
+    return 0;
+}
+
+void drawg_backend_present(int64 pixels, int32 width, int32 height) {
+    if (drawg_fb_alive == 0) return;
+
+    lseek(drawg_fb_fd, 0, SEEK_SET);
+
+    int64 total = width;
+    total = total * height;
+
+    int64* src = pixels;
+    int64 i = 0;
+    while (i < total) {
+        int64 px = *src;
+        int64 out = drawg_rgb_to_bgra(px);
+        write(drawg_fb_fd, &out, 4);
+        src += 1;
+        i += 1;
+    }
+}
+
+void drawg_backend_sleep(int32 ms) {
+    if (ms <= 0) return;
+    usleep(ms * 1000);
+}
+
+void drawg_backend_shutdown() {
+    if (drawg_fb_fd >= 0) {
+        close(drawg_fb_fd);
+        drawg_fb_fd = -1;
+    }
+    drawg_fb_alive = 0;
+}
