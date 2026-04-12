@@ -52,3 +52,8 @@ make bootstrap-no-cc-smoke
 ```
 
 Esto construye `gee_stage1_nocc` con `gee + as + ld`.
+
+
+## Setup completo
+
+Para guía total x86-64 + ARM64 (compilador, librerías, ejemplos, troubleshooting), ver `COMPLETE_SETUP_X86_64_ARM64.md`.

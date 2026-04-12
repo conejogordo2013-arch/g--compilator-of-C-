@@ -52,3 +52,13 @@ También se incluye `libdrawg/backend_windows_gdi.cb` para compilar `.exe` en Wi
 ./gee libdrawg/backend_windows_gdi.cb /tmp/drawg_win.s
 x86_64-w64-mingw32-gcc /tmp/drawg_cube.s /tmp/drawg.s /tmp/drawg_win.s -lgdi32 -luser32 -o drawg_cube.exe
 ```
+
+
+## Guía ARM64 (Termux + Linux)
+
+Ver `examples/drawg_arm64_termux_linux.md` para setup completo y ejecución por entorno.
+
+
+## Android / APK
+
+Ver `ANDROID_APK_GUIDE.md` para estrategia de empaquetado APK en tiempo real con C! + backend nativo.
