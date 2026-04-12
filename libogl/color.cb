@@ -1,0 +1,24 @@
+// libogl/color.cb - utilidades de color para canvas 2D.
+
+int32 ogl_rgba(int32 r, int32 g, int32 b, int32 a) {
+    int32 rr = r & 255;
+    int32 gg = g & 255;
+    int32 bb = b & 255;
+    int32 aa = a & 255;
+    return rr | (gg << 8) | (bb << 16) | (aa << 24);
+}
+
+int32 ogl_rgb(int32 r, int32 g, int32 b) {
+    return ogl_rgba(r, g, b, 255);
+}
+
+int32 ogl_r(int32 c) { return c & 255; }
+int32 ogl_g(int32 c) { return (c >> 8) & 255; }
+int32 ogl_b(int32 c) { return (c >> 16) & 255; }
+int32 ogl_a(int32 c) { return (c >> 24) & 255; }
+
+int32 ogl_color_black() { return ogl_rgb(0, 0, 0); }
+int32 ogl_color_white() { return ogl_rgb(255, 255, 255); }
+int32 ogl_color_red() { return ogl_rgb(255, 0, 0); }
+int32 ogl_color_green() { return ogl_rgb(0, 255, 0); }
+int32 ogl_color_blue() { return ogl_rgb(0, 0, 255); }

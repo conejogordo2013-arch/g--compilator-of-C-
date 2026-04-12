@@ -1,0 +1,62 @@
+import system;
+
+struct Ogl3Body {
+    int32 pos_x;
+    int32 pos_y;
+    int32 pos_z;
+    int32 vel_x;
+    int32 vel_y;
+    int32 vel_z;
+    int32 force_x;
+    int32 force_y;
+    int32 force_z;
+    int32 mass;
+    int32 inv_mass;
+    int32 radius;
+    int32 restitution;
+    int32 is_static;
+};
+struct Ogl3World {
+    int32 gravity_x;
+    int32 gravity_y;
+    int32 gravity_z;
+    int32 min_x;
+    int32 max_x;
+    int32 min_y;
+    int32 max_y;
+    int32 min_z;
+    int32 max_z;
+};
+
+extern void ogl3_body_init_dynamic(struct Ogl3Body*, int32, int32, int32, int32, int32);
+extern void ogl3_world_init(struct Ogl3World*, int32, int32, int32, int32, int32, int32, int32, int32, int32);
+extern void ogl3_world_step_body(struct Ogl3World*, struct Ogl3Body*, int32);
+extern void ogl3_world_step_pair(struct Ogl3World*, struct Ogl3Body*, struct Ogl3Body*, int32);
+extern int32 ogl3_body_signature(struct Ogl3Body*);
+extern int32 ogl3_body_energy(struct Ogl3Body*);
+
+int32 main() {
+    struct Ogl3World w;
+    struct Ogl3Body b;
+    struct Ogl3Body c;
+
+    ogl3_world_init(&w, 0, 9800, 0, -60000, 60000, -60000, 60000, -60000, 60000);
+    ogl3_body_init_dynamic(&b, 0, 0, 0, 1200, 700);
+    ogl3_body_init_dynamic(&c, 3000, 0, 0, 900, 500);
+    c.vel_x = -700;
+
+    int32 i = 0;
+    while (i < 55) {
+        ogl3_world_step_pair(&w, &b, &c, 16);
+        i = i + 1;
+    }
+
+    int32 sig = (ogl3_body_signature(&b) + ogl3_body_energy(&b) + ogl3_body_signature(&c)) % 251;
+    if (sig != 58) {
+        system_exit(sig);
+        return 0;
+    }
+
+    system_exit(0);
+    return 0;
+}

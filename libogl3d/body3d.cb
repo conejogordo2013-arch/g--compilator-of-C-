@@ -1,0 +1,63 @@
+// libogl3d/body3d.cb - cuerpo rígido 3D simple (campos planos).
+
+struct Ogl3Body {
+    int32 pos_x;
+    int32 pos_y;
+    int32 pos_z;
+    int32 vel_x;
+    int32 vel_y;
+    int32 vel_z;
+    int32 force_x;
+    int32 force_y;
+    int32 force_z;
+    int32 mass;
+    int32 inv_mass;
+    int32 radius;
+    int32 restitution;
+    int32 is_static;
+};
+
+void ogl3_body_init_dynamic(struct Ogl3Body* b, int32 px, int32 py, int32 pz, int32 mass, int32 radius) {
+    b->pos_x = px;
+    b->pos_y = py;
+    b->pos_z = pz;
+    b->vel_x = 0;
+    b->vel_y = 0;
+    b->vel_z = 0;
+    b->force_x = 0;
+    b->force_y = 0;
+    b->force_z = 0;
+    b->mass = mass;
+    if (mass <= 0) b->inv_mass = 0;
+    else b->inv_mass = 1000 / mass;
+    b->radius = radius;
+    b->restitution = 550;
+    b->is_static = 0;
+}
+
+void ogl3_body_add_force(struct Ogl3Body* b, int32 fx, int32 fy, int32 fz) {
+    if (b->is_static != 0) return;
+    b->force_x = b->force_x + fx;
+    b->force_y = b->force_y + fy;
+    b->force_z = b->force_z + fz;
+}
+
+void ogl3_body_integrate(struct Ogl3Body* b, int32 dt_ms) {
+    if (b->is_static != 0) return;
+
+    int32 ax = (b->force_x * b->inv_mass) / 1000;
+    int32 ay = (b->force_y * b->inv_mass) / 1000;
+    int32 az = (b->force_z * b->inv_mass) / 1000;
+
+    b->vel_x = b->vel_x + ((ax * dt_ms) / 1000);
+    b->vel_y = b->vel_y + ((ay * dt_ms) / 1000);
+    b->vel_z = b->vel_z + ((az * dt_ms) / 1000);
+
+    b->pos_x = b->pos_x + ((b->vel_x * dt_ms) / 1000);
+    b->pos_y = b->pos_y + ((b->vel_y * dt_ms) / 1000);
+    b->pos_z = b->pos_z + ((b->vel_z * dt_ms) / 1000);
+
+    b->force_x = 0;
+    b->force_y = 0;
+    b->force_z = 0;
+}

@@ -1,0 +1,27 @@
+// libogl3d/vec3.cb - matemáticas 3D (fixed-point entero).
+
+struct Ogl3Vec3 {
+    int32 x;
+    int32 y;
+    int32 z;
+};
+
+struct Ogl3Vec3 ogl3_vec3(int32 x, int32 y, int32 z) {
+    struct Ogl3Vec3 v;
+    v.x = x;
+    v.y = y;
+    v.z = z;
+    return v;
+}
+
+struct Ogl3Vec3 ogl3_add(struct Ogl3Vec3 a, struct Ogl3Vec3 b) {
+    return ogl3_vec3(a.x + b.x, a.y + b.y, a.z + b.z);
+}
+
+struct Ogl3Vec3 ogl3_sub(struct Ogl3Vec3 a, struct Ogl3Vec3 b) {
+    return ogl3_vec3(a.x - b.x, a.y - b.y, a.z - b.z);
+}
+
+int32 ogl3_dot(struct Ogl3Vec3 a, struct Ogl3Vec3 b) {
+    return a.x * b.x + a.y * b.y + a.z * b.z;
+}

@@ -1,0 +1,38 @@
+// libogl2d/vec2.cb - matemáticas 2D (fixed-point entero).
+
+struct Ogl2Vec2 {
+    int32 x;
+    int32 y;
+};
+
+struct Ogl2Vec2 ogl2_vec2(int32 x, int32 y) {
+    struct Ogl2Vec2 v;
+    v.x = x;
+    v.y = y;
+    return v;
+}
+
+struct Ogl2Vec2 ogl2_add(struct Ogl2Vec2 a, struct Ogl2Vec2 b) {
+    return ogl2_vec2(a.x + b.x, a.y + b.y);
+}
+
+struct Ogl2Vec2 ogl2_sub(struct Ogl2Vec2 a, struct Ogl2Vec2 b) {
+    return ogl2_vec2(a.x - b.x, a.y - b.y);
+}
+
+struct Ogl2Vec2 ogl2_scale(struct Ogl2Vec2 a, int32 k) {
+    return ogl2_vec2(a.x * k, a.y * k);
+}
+
+struct Ogl2Vec2 ogl2_div(struct Ogl2Vec2 a, int32 d) {
+    if (d == 0) return ogl2_vec2(0, 0);
+    return ogl2_vec2(a.x / d, a.y / d);
+}
+
+int32 ogl2_dot(struct Ogl2Vec2 a, struct Ogl2Vec2 b) {
+    return a.x * b.x + a.y * b.y;
+}
+
+int32 ogl2_len2(struct Ogl2Vec2 a) {
+    return ogl2_dot(a, a);
+}
